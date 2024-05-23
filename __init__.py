@@ -38,14 +38,16 @@ if not dir in sys.path:
   sys.path.append(dir)
 
 
-from . import (operators, properties, util)
+from . import (datamanager, operators, properties, util)
 
+reload(datamanager)
 reload(util)
 reload(operators)
 reload(properties)
 
 from .properties import *
 from .operators import *
+
 
 
 # ------------------------------------------------------------------------
@@ -64,12 +66,6 @@ class CG_RoadPanel(bpy.types.Panel):
   def draw(self, context):
     layout = self.layout
     road_props = context.scene.road_props
-
-    layout.prop(road_props, "lane_width")
-
-    row = layout.row()
-    row.prop(road_props, "left_lanes")
-    row.prop(road_props, "right_lanes")
     
     row = layout.row()
     row.prop(road_props, "curve")
@@ -80,8 +76,23 @@ class CG_RoadPanel(bpy.types.Panel):
     row.operator("cg.create_roads_from_collection")
 
     layout.operator("cg.create_roads")
+    layout.operator("cg.create_crossroads")
+    layout.operator("cg.create_road_data")
+    layout.operator("cg.delete_roads")
     layout.operator("cg.delete_all")
 
+
+class CG_BuildingPanel(bpy.types.Panel):
+  bl_label = "Building Generation"
+  bl_idname = "citygen_building_panel"
+  bl_space_type = "VIEW_3D"
+  bl_region_type = "UI"
+  bl_category = "CityGen"
+  bl_context = "objectmode"
+  bl_order = 1
+
+  def draw(self, context):
+    layout = self.layout
 
 # ------------------------------------------------------------------------
 #    Registration of Properties, Operators and the Panel
@@ -92,8 +103,11 @@ classes = (
   CG_CreateOneRoad,
   CG_CreateRoadsFromCollection,
   CG_CreateRoads,
+  CG_CreateRoadData,
   CG_DeleteRoads,
-  CG_RoadPanel
+  CG_DeleteAll,
+  CG_RoadPanel,
+  CG_CreateCrossroads
 )
 
 def register():
