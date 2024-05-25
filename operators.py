@@ -61,7 +61,7 @@ class CG_CreateRoads(bpy.types.Operator):
     curves = get_visible_curves()
 
     return add_roads(curves)
-
+  
 
 class CG_CreateRoadData(bpy.types.Operator):
   """Create road data for all curves in the scene"""
@@ -102,7 +102,7 @@ class CG_DeleteAll(bpy.types.Operator):
   bl_options = {'REGISTER', 'UNDO'}
 
   def execute(self, context):
-    collections = ["Kerbs", "Road Lanes"]
+    collections = ["Kerbs", "Road Lanes", "Line Meshes"]
 
     return delete(collections)
 
