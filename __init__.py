@@ -49,7 +49,6 @@ from .properties import *
 from .operators import *
 
 
-
 # ------------------------------------------------------------------------
 #    Panel in Object Mode
 # ------------------------------------------------------------------------
@@ -75,10 +74,9 @@ class CG_RoadPanel(bpy.types.Panel):
     row.prop(road_props, "collection")
     row.operator("cg.create_roads_from_collection")
 
+    layout.operator("cg.create_road_data")
     layout.operator("cg.create_roads")
     layout.operator("cg.create_crossroads")
-    layout.operator("cg.create_road_data")
-    layout.operator("cg.delete_roads")
     layout.operator("cg.delete_all")
 
 

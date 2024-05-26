@@ -78,23 +78,6 @@ class CG_CreateRoadData(bpy.types.Operator):
     return {'FINISHED'}
 
 
-class CG_DeleteRoads(bpy.types.Operator):
-  """Delete all created roads in the collection 'Road Lanes' and the collection itself"""
-  bl_label = "Delete Roads"
-  bl_idname = "cg.delete_roads"
-  bl_options = {'REGISTER', 'UNDO'}
-
-  def execute(self, context):
-    collections = ["Road Lanes"]
-
-    return delete(collections)
-
-  def invoke(self, context, event):
-    wm = context.window_manager
-
-    return wm.invoke_confirm(self, event)
-
-
 class CG_DeleteAll(bpy.types.Operator):
   """Delete all created meshes and the collections themselves"""
   bl_label = "Delete All"
@@ -110,6 +93,7 @@ class CG_DeleteAll(bpy.types.Operator):
     wm = context.window_manager
 
     return wm.invoke_confirm(self, event)
+
 
 class CG_CreateCrossroads(bpy.types.Operator):
   """Create crossroads for all curves in the scene"""
