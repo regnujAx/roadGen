@@ -1,19 +1,20 @@
-### To use this add-on you have to zip the directory containing this file (CityGen) 
-### and the scripts directory (inside the CityGen directory) and install the zip in the .blend file.
+### To use this add-on you have to zip the directory containing this file (CityGen)
+### and install the zip in the .blend file.
 ### To install the add-on open your .blend file and go to Edit -> Preferences -> Add-ons -> Install.
-### Navigate to the directory where the zip-file is located that contains the CityGen directory and the scripts directory and select it.
-### The add-on should now listed and you have to enable it by clicking the checkbox. If you don't see it, select User in the dropdown.
+### Navigate to the directory where the zip-file is located that contains the CityGen directory and select it.
+### The add-on should now listed and you have to enable it by clicking the checkbox.
+### If you don't see it, select User in the dropdown.
 ### When enabled, you can use it in the 3D Viewport Object Mode.
 
 
 bl_info = {
-  "name": "CityGen",
-  "author": "Alexander Junger",
-  "version": (1, 0),
-  "blender": (3, 6, 11),
-  "location": "View3D > Toolbar > CityGen",
-  "category": "Object",
-  "description": "Generate a procedural city."
+    "name": "CityGen",
+    "author": "Alexander Junger",
+    "version": (1, 0),
+    "blender": (3, 6, 11),
+    "location": "View3D > Toolbar > CityGen",
+    "category": "Object",
+    "description": "Generate a procedural city."
 }
 
 
@@ -34,8 +35,8 @@ from importlib import reload
 
 dir = os.path.dirname(os.path.abspath(__file__))
 
-if not dir in sys.path:
-  sys.path.append(dir)
+if dir not in sys.path:
+    sys.path.append(dir)
 
 
 from . import (datamanager, operators, properties, util)
@@ -54,68 +55,70 @@ from .operators import *
 # ------------------------------------------------------------------------
 
 class CG_RoadPanel(bpy.types.Panel):
-  bl_label = "Road Generation"
-  bl_idname = "citygen_road_panel"
-  bl_space_type = "VIEW_3D"
-  bl_region_type = "UI"
-  bl_category = "CityGen"
-  bl_context = "objectmode"
-  bl_order = 1
+    bl_label = "Road Generation"
+    bl_idname = "citygen_road_panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "CityGen"
+    bl_context = "objectmode"
+    bl_order = 1
 
-  def draw(self, context):
-    layout = self.layout
-    road_props = context.scene.road_props
-    
-    row = layout.row()
-    row.prop(road_props, "curve")
-    row.operator("cg.create_one_road")
+    def draw(self, context):
+        layout = self.layout
+        road_props = context.scene.road_props
 
-    row = layout.row()
-    row.prop(road_props, "collection")
-    row.operator("cg.create_roads_from_collection")
+        row = layout.row()
+        row.prop(road_props, "curve")
+        row.operator("cg.create_one_road")
 
-    layout.operator("cg.create_road_data")
-    layout.operator("cg.create_roads")
-    layout.operator("cg.create_crossroads")
-    layout.operator("cg.delete_all")
+        row = layout.row()
+        row.prop(road_props, "collection")
+        row.operator("cg.create_roads_from_collection")
+
+        layout.operator("cg.create_road_data")
+        layout.operator("cg.create_roads")
+        layout.operator("cg.create_crossroads")
+        layout.operator("cg.delete_all")
 
 
-class CG_BuildingPanel(bpy.types.Panel):
-  bl_label = "Building Generation"
-  bl_idname = "citygen_building_panel"
-  bl_space_type = "VIEW_3D"
-  bl_region_type = "UI"
-  bl_category = "CityGen"
-  bl_context = "objectmode"
-  bl_order = 1
+# class CG_BuildingPanel(bpy.types.Panel):
+#     bl_label = "Building Generation"
+#     bl_idname = "citygen_building_panel"
+#     bl_space_type = "VIEW_3D"
+#     bl_region_type = "UI"
+#     bl_category = "CityGen"
+#     bl_context = "objectmode"
+#     bl_order = 1
 
-  def draw(self, context):
-    layout = self.layout
+#     def draw(self, context):
+#         layout = self.layout
 
 # ------------------------------------------------------------------------
 #    Registration of Properties, Operators and the Panel
 # ------------------------------------------------------------------------
 
 classes = (
-  CG_RoadProperties,
-  CG_CreateOneRoad,
-  CG_CreateRoadsFromCollection,
-  CG_CreateRoads,
-  CG_CreateRoadData,
-  CG_DeleteRoads,
-  CG_DeleteAll,
-  CG_RoadPanel,
-  CG_CreateCrossroads
+    CG_RoadProperties,
+    CG_CreateOneRoad,
+    CG_CreateRoadsFromCollection,
+    CG_CreateRoads,
+    CG_CreateRoadData,
+    CG_DeleteAll,
+    CG_RoadPanel,
+    # CG_CreateCrossroads,
+    # CG_BuildingPanel
 )
 
-def register():
-  for cls in classes:
-    bpy.utils.register_class(cls)
 
-  bpy.types.Scene.road_props = bpy.props.PointerProperty(type=CG_RoadProperties)
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+    bpy.types.Scene.road_props = bpy.props.PointerProperty(type=CG_RoadProperties)
+
 
 def unregister():
-  del bpy.types.Scene.road_props
+    del bpy.types.Scene.road_props
 
-  for cls in reversed(classes):
-    bpy.utils.unregister_class(cls)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)

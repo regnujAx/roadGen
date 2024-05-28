@@ -1,6 +1,4 @@
 import bpy
-import mathutils
-import os
 
 
 # from . import config
@@ -13,101 +11,101 @@ from .util import add_roads, delete, get_visible_curves, show_message_box
 # ------------------------------------------------------------------------
 
 class CG_CreateOneRoad(bpy.types.Operator):
-  """Create one road from a specified curve in the scene"""
-  bl_label = "Create One Road"
-  bl_idname = "cg.create_one_road"
-  bl_options = {'REGISTER', 'UNDO'}
+    """Create one road from a specified curve in the scene"""
+    bl_label = "Create One Road"
+    bl_idname = "cg.create_one_road"
+    bl_options = {'REGISTER', 'UNDO'}
 
-  def execute(self, context):
-    road_props = context.scene.road_props
-    curve = road_props.curve
+    def execute(self, context):
+        road_props = context.scene.road_props
+        curve = road_props.curve
 
-    if curve is None:
-      show_message_box("No curve selected!", "Please select a curve if you want to use this feature.")
-      self.report({'INFO'}, "Please select a curve if you want to use this feature.")
+        if curve is None:
+            show_message_box("No curve selected!", "Please select a curve if you want to use this feature.")
+            self.report({'INFO'}, "Please select a curve if you want to use this feature.")
 
-      return {'FINISHED'}
+            return {'FINISHED'}
 
-    return add_roads([curve])
+        return add_roads([curve])
 
 
 class CG_CreateRoadsFromCollection(bpy.types.Operator):
-  """Create roads from a specified collection"""
-  bl_label = "Create Roads from Collection"
-  bl_idname = "cg.create_roads_from_collection"
-  bl_options = {'REGISTER', 'UNDO'}
+    """Create roads from a specified collection"""
+    bl_label = "Create Roads from Collection"
+    bl_idname = "cg.create_roads_from_collection"
+    bl_options = {'REGISTER', 'UNDO'}
 
-  def execute(self, context):
-    road_props = context.scene.road_props
-    collection = road_props.collection
-    curves = [obj for obj in collection.objects if obj.type == "CURVE" and obj.visible_get()]
+    def execute(self, context):
+        road_props = context.scene.road_props
+        collection = road_props.collection
+        curves = [obj for obj in collection.objects if obj.type == "CURVE" and obj.visible_get()]
 
-    if collection is None:
-      show_message_box("No collection selected!", "Please select a collection if you want to use this feature.")
-      self.report({'INFO'}, "Please select a collection if you want to use this feature.")
+        if collection is None:
+            show_message_box("No collection selected!", "Please select a collection if you want to use this feature.")
+            self.report({'INFO'}, "Please select a collection if you want to use this feature.")
 
-      return {'FINISHED'}
+            return {'FINISHED'}
 
-    return add_roads(curves)
+        return add_roads(curves)
 
 
 class CG_CreateRoads(bpy.types.Operator):
-  """Create roads from all visible (not hidden) curves in the scene"""
-  bl_label = "Create All Roads"
-  bl_idname = "cg.create_roads"
-  bl_options = {'REGISTER', 'UNDO'}
+    """Create roads from all visible (not hidden) curves in the scene"""
+    bl_label = "Create All Roads"
+    bl_idname = "cg.create_roads"
+    bl_options = {'REGISTER', 'UNDO'}
 
-  def execute(self, context):
-    curves = get_visible_curves()
+    def execute(self, context):
+        curves = get_visible_curves()
 
-    return add_roads(curves)
-  
+        return add_roads(curves)
+
 
 class CG_CreateRoadData(bpy.types.Operator):
-  """Create road data for all curves in the scene"""
-  bl_label = "Create Road Data"
-  bl_idname = "cg.create_road_data"
-  bl_options = {'REGISTER', 'UNDO'}
+    """Create road data for all curves in the scene"""
+    bl_label = "Create Road Data"
+    bl_idname = "cg.create_road_data"
+    bl_options = {'REGISTER', 'UNDO'}
 
-  def execute(self, context):
-    curves = get_visible_curves()
+    def execute(self, context):
+        curves = get_visible_curves()
 
-    datamanager = CG_DataManager(curves)
-    datamanager.createRoadData()
+        datamanager = CG_DataManager(curves)
+        datamanager.createRoadData()
 
-    return {'FINISHED'}
+        return {'FINISHED'}
 
 
 class CG_DeleteAll(bpy.types.Operator):
-  """Delete all created meshes and the collections themselves"""
-  bl_label = "Delete All"
-  bl_idname = "cg.delete_all"
-  bl_options = {'REGISTER', 'UNDO'}
+    """Delete all created meshes and the collections themselves"""
+    bl_label = "Delete All"
+    bl_idname = "cg.delete_all"
+    bl_options = {'REGISTER', 'UNDO'}
 
-  def execute(self, context):
-    collections = ["Kerbs", "Road Lanes", "Line Meshes"]
+    def execute(self, context):
+        collections = ["Kerbs", "Road Lanes", "Line Meshes"]
 
-    return delete(collections)
+        return delete(collections)
 
-  def invoke(self, context, event):
-    wm = context.window_manager
+    def invoke(self, context, event):
+        wm = context.window_manager
 
-    return wm.invoke_confirm(self, event)
+        return wm.invoke_confirm(self, event)
 
 
-class CG_CreateCrossroads(bpy.types.Operator):
-  """Create crossroads for all curves in the scene"""
-  bl_label = "Create Crossroads"
-  bl_idname = "cg.create_crossroads"
-  bl_options = {'REGISTER', 'UNDO'}
+# class CG_CreateCrossroads(bpy.types.Operator):
+#     """Create crossroads for all curves in the scene"""
+#     bl_label = "Create Crossroads"
+#     bl_idname = "cg.create_crossroads"
+#     bl_options = {'REGISTER', 'UNDO'}
 
-  def execute(self, context):
-    road_props = context.scene.road_props
-    lane_width = road_props.lane_width
-    left_lanes = road_props.left_lanes
-    right_lanes = road_props.right_lanes
-    curve = road_props.curve
+#     def execute(self, context):
+#         road_props = context.scene.road_props
+#         lane_width = road_props.lane_width
+#         left_lanes = road_props.left_lanes
+#         right_lanes = road_props.right_lanes
+#         curve = road_props.curve
 
-    # Select all visible (not hidden) curves
-    objects = bpy.context.scene.objects
-    curves = [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]
+#         # Select all visible (not hidden) curves
+#         objects = bpy.context.scene.objects
+#         curves = [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]
