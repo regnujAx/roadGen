@@ -35,58 +35,55 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     for modifier in mesh.modifiers:
         bpy.ops.object.modifier_apply(modifier=modifier.name)
 
-    # Select the mesh and apply its transformations (i.e. translation, rotation, scale)
-    # mesh.select_set(True)
-    # bpy.ops.object.transform_apply()
-    # mesh.select_set(False)
+    # Select the mesh and apply its transform (i.e. translation, rotation, scale)
     apply_transform(mesh)
 
 
-def add_roads(curves: list):
-    road_lane_mesh_template_left = bpy.data.objects.get("Road_Lane_Border_Left")
-    road_lane_mesh_template_right = bpy.data.objects.get("Road_Lane_Border_Right")
+def add_road_lanes(curve: bpy.types.Object, side: str, lane_number: int, lane_width: float):
+    road_lane_mesh_template_outside = bpy.data.objects.get(f"Road_Lane_Border_{side}")
     road_lane_mesh_template_inside = bpy.data.objects.get("Road_Lane_Inside")
-    kerb_mesh_template = bpy.data.objects.get("Kerb")
 
-    if road_lane_mesh_template_left and road_lane_mesh_template_right and road_lane_mesh_template_inside:
-        for curve in curves:
-            curve.name = curve.name.replace(".", "_")
-            # Select the curve and apply its transformations (i.e. translation, rotation, scale)
-            # but without its properties such as radius
-            # curve.select_set(True)
-            # bpy.ops.object.transform_apply(properties=False)
-            # curve.select_set(False)
-            apply_transform(curve, False)
-
-            # Get the curve's custom properties
-            lane_width = curve["Lane Width"]
-            left_lanes = curve["Left Lanes"]
-            right_lanes = curve["Right Lanes"]
-
-            for i in range(left_lanes):
-                template = road_lane_mesh_template_left if i == left_lanes - 1 else road_lane_mesh_template_inside
-                add_mesh_to_curve(template, curve, "Road_Lane_Left", lane_width, i + 1)
-            for i in range(right_lanes):
-                template = road_lane_mesh_template_right if i == right_lanes - 1 else road_lane_mesh_template_inside
-                add_mesh_to_curve(template, curve, "Road_Lane_Right", lane_width, -i)
-
-            if kerb_mesh_template:
-                for side in ["Left", "Right"]:
-                    index = left_lanes if side == "Left" else -right_lanes
-                    add_mesh_to_curve(kerb_mesh_template, curve, f"Kerb_{side}", lane_width, index)
-
-                    mesh_name = "Kerb_" + side + "_" + curve.name
-                    add_line_following_mesh(mesh_name)
-
-                    if curve[f"{side} Dropped Kerbs"]:
-                        positions = [int(x) for x in curve[f"{side} Dropped Kerbs"].split(",")]
-                        add_object_to_mesh(mesh_name, positions)
-            else:
-                print("Check whether the object Kerb is present, it is missing.")
-
+    if road_lane_mesh_template_outside and road_lane_mesh_template_inside:
+        for i in range(lane_number):
+            template = road_lane_mesh_template_outside if i == lane_number - 1 else road_lane_mesh_template_inside
+            index = i + 1 if side == "Left" else -i
+            add_mesh_to_curve(template, curve, f"Road_Lane_{side}", lane_width, index)
     else:
         print("Check whether the objects Road_Lane_Border_Left, Road_Lane_Border_Right and Road_Lane_Inside are present. "
               "At least one is missing.")
+
+
+def add_roads(curves: list):
+    kerb_mesh_template = bpy.data.objects.get("Kerb")
+
+    # if road_lane_mesh_template_left and road_lane_mesh_template_right and road_lane_mesh_template_inside:
+    for curve in curves:
+        curve.name = curve.name.replace(".", "_")
+        # Select the curve and apply its transform (i.e. translation, rotation, scale)
+        # but without its properties such as radius
+        apply_transform(curve, False)
+
+        # Get the curve's custom properties
+        lane_width = curve["Lane Width"]
+        left_lanes = curve["Left Lanes"]
+        right_lanes = curve["Right Lanes"]
+
+        add_road_lanes(curve, "Left", left_lanes, lane_width)
+        add_road_lanes(curve, "Right", right_lanes, lane_width)
+
+        if kerb_mesh_template:
+            for side in ["Left", "Right"]:
+                index = left_lanes if side == "Left" else -right_lanes
+                add_mesh_to_curve(kerb_mesh_template, curve, f"Kerb_{side}", lane_width, index)
+
+                mesh_name = "Kerb_" + side + "_" + curve.name
+                add_line_following_mesh(mesh_name)
+
+                if curve[f"{side} Dropped Kerbs"]:
+                    positions = [int(x) for x in curve[f"{side} Dropped Kerbs"].split(",")]
+                    add_object_to_mesh(mesh_name, positions)
+        else:
+            print("Check whether the object Kerb is present, it is missing.")
 
     return {'FINISHED'}
 
