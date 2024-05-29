@@ -77,7 +77,7 @@ class CG_RoadPanel(bpy.types.Panel):
 
         layout.operator("cg.create_road_data")
         layout.operator("cg.create_roads")
-        # layout.operator("cg.create_crossroads")
+        layout.operator("cg.create_crossroads")
         layout.operator("cg.delete_all")
 
 
@@ -105,7 +105,7 @@ classes = (
     CG_CreateRoadData,
     CG_DeleteAll,
     CG_RoadPanel,
-    # CG_CreateCrossroads,
+    CG_CreateCrossroads,
     # CG_BuildingPanel
 )
 

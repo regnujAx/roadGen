@@ -1,11 +1,67 @@
 import bpy
 import bmesh
 import mathutils
+import numpy as np
 
 
 # ------------------------------------------------------------------------
 #    Helper Functions
 # ------------------------------------------------------------------------
+
+
+def add_crossroad(lines: list, crossing_point: mathutils.Vector, height: float):
+    verts = []
+    number_of_lines = len(lines)
+    # Mark one point as reference for distance calculation
+    reference_point = crossing_point
+    # Use a copy of the lines to remove the lines already used and only consider the remaining lines
+    lines_copy = lines.copy()
+    # Iterate over all lines and collect the vertices for the crossroad plane
+    for i in range(number_of_lines):
+        if i < number_of_lines - 1:
+            # Every road has two lines, so we have to check which one is closer (for the correct order of the plane vertices)
+            vertex_0 = get_closest_line_point(lines_copy[0], reference_point)
+            vertex_1 = get_closest_line_point(lines_copy[1], reference_point)
+            vertex = get_closest_point(vertex_0, vertex_1, reference_point)
+            # Remove the closest line
+            line_to_remove = lines_copy[0] if vertex == vertex_0 else lines_copy[1]
+            # Set the current point as reference_point for the next iteration (to find the nearest point)
+            reference_point = vertex
+        else:
+            # Use the remaining line
+            vertex = get_closest_line_point(lines_copy[0], reference_point)
+            line_to_remove = lines_copy[0]
+
+        lines_copy.remove(line_to_remove)
+        vertex_vec = mathutils.Vector((vertex.x, vertex.y, 0.0))
+        verts.append(vertex_vec)
+
+    # Collect the face (only one) for the crossroad plane (assumption: all vertices are in the correct order)
+    faces = []
+    face = []
+    for index in range(len(verts)):
+        face.append(index)
+    faces.append(face)
+
+    # Create the crossroad plane and link it to its corresponding collection
+    mesh = bpy.data.meshes.new("Crossroad Mesh")
+    mesh.from_pydata(verts, [], faces)
+    crossroad = bpy.data.objects.new("Crossroad", mesh)
+    link_to_collection(crossroad, "Crossroads")
+
+    # Edit the crossroad plane
+    bpy.context.view_layer.objects.active = crossroad
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    # Extrude the crossroad plane so it is a 3D mesh
+    bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": (0.0, 0.0, height)})
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # Set the origin to the center of the mesh (Hint: This overwrites the location.)
+    set_origin(crossroad)
+
+    return {'FINISHED'}
+
 
 def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, lane_width: float, index: int):
     mesh = mesh_template.copy()
@@ -35,7 +91,7 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     for modifier in mesh.modifiers:
         bpy.ops.object.modifier_apply(modifier=modifier.name)
 
-    # Select the mesh and apply its transform (i.e. translation, rotation, scale)
+    # Select the mesh and apply its transforms (i.e. translation, rotation, scale)
     apply_transform(mesh)
 
 
@@ -58,8 +114,10 @@ def add_roads(curves: list):
 
     # if road_lane_mesh_template_left and road_lane_mesh_template_right and road_lane_mesh_template_inside:
     for curve in curves:
+        if curve.dimensions == "2D":
+            curve.dimensions = "3D"
         curve.name = curve.name.replace(".", "_")
-        # Select the curve and apply its transform (i.e. translation, rotation, scale)
+        # Select the curve and apply its transforms (i.e. translation, rotation, scale)
         # but without its properties such as radius
         apply_transform(curve, False)
 
@@ -98,7 +156,7 @@ def add_line_following_mesh(mesh_name: str):
     for face in bm.faces:
         center = face.calc_center_median()
 
-        if center[2] >= 0.1999:
+        if center[2] >= 0.24999:
             top_faces_center.append(center)
 
     bm.free()
@@ -200,7 +258,7 @@ def add_object_to_mesh(mesh_name: str, positions: list):
             for (co, index, dist) in kd.find_range(object_position, radius):
                 vertex = bm.verts[index]
 
-                if vertex.co[2] > 0:
+                if vertex.co[2] > 0.1:
                     vertex.co[2] -= 0.135
 
             bm.free()
@@ -231,6 +289,25 @@ def delete(collections):
     return {'FINISHED'}
 
 
+def get_closest_line_point(line: bpy.types.Object, reference_point: mathutils.Vector):
+    # Check for the line which of its start/end vertices is the closest to a reference point
+    v_start = line.data.vertices[0].co.xyz
+    v_end = line.data.vertices[-1].co.xyz
+    return get_closest_point(v_start, v_end, reference_point)
+
+
+def get_closest_point(point_1: mathutils.Vector, point_2: mathutils.Vector, reference_point: mathutils.Vector):
+    distance_1 = np.sqrt(np.sum([
+        (point_1.x - reference_point.x)**2,
+        (point_1.y - reference_point.y)**2,
+        (point_1.z - reference_point.z)**2]))
+    distance_2 = np.sqrt(np.sum([
+        (point_2.x - reference_point.x)**2,
+        (point_2.y - reference_point.y)**2,
+        (point_2.z - reference_point.z)**2]))
+    return point_1 if distance_1 < distance_2 else point_2
+
+
 def get_visible_curves():
     # Select all visible (not hidden) curves
     objects = bpy.context.scene.objects
@@ -245,6 +322,12 @@ def link_to_collection(mesh: bpy.types.Object, collection_name: str):
         bpy.context.scene.collection.children.link(collection)
 
     collection.objects.link(mesh)
+
+
+def set_origin(object: bpy.types.Object):
+    object.select_set(True)
+    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center='BOUNDS')
+    object.select_set(False)
 
 
 def show_message_box(title="Message Box", message="", icon='INFO'):

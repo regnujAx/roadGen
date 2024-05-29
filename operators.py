@@ -3,7 +3,7 @@ import bpy
 
 # from . import config
 from .datamanager import CG_DataManager
-from .util import add_roads, delete, get_visible_curves, show_message_box
+from .util import add_crossroad, add_roads, delete, get_visible_curves, show_message_box
 
 
 # ------------------------------------------------------------------------
@@ -83,7 +83,7 @@ class CG_DeleteAll(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        collections = ["Kerbs", "Road Lanes", "Line Meshes"]
+        collections = ["Crossroads", "Kerbs", "Line Meshes", "Road Lanes"]
 
         return delete(collections)
 
@@ -93,19 +93,23 @@ class CG_DeleteAll(bpy.types.Operator):
         return wm.invoke_confirm(self, event)
 
 
-# class CG_CreateCrossroads(bpy.types.Operator):
-#     """Create crossroads for all curves in the scene"""
-#     bl_label = "Create Crossroads"
-#     bl_idname = "cg.create_crossroads"
-#     bl_options = {'REGISTER', 'UNDO'}
+class CG_CreateCrossroads(bpy.types.Operator):
+    """Create crossroads for all curves in the scene"""
+    bl_label = "Create Crossroads"
+    bl_idname = "cg.create_crossroads"
+    bl_options = {'REGISTER', 'UNDO'}
 
-#     def execute(self, context):
-#         road_props = context.scene.road_props
-#         lane_width = road_props.lane_width
-#         left_lanes = road_props.left_lanes
-#         right_lanes = road_props.right_lanes
-#         curve = road_props.curve
+    def execute(self, context):
+        # Get the names of all visible (not hidden) curves
+        curves = get_visible_curves()
+        curve_names = [curve.name for curve in curves]
+        curve_names.sort()
 
-#         # Select all visible (not hidden) curves
-#         objects = bpy.context.scene.objects
-#         curves = [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]
+        lines = []
+        for curve_name in curve_names:
+            for side in ["Left", "Right"]:
+                line = bpy.data.objects.get(f"Line_Mesh_Kerb_{side}_{curve_name}")
+                lines.append(line)
+
+        crossing_point = bpy.data.objects.get("Plane")
+        return add_crossroad(lines, crossing_point.location, 0.1)
