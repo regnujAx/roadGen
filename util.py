@@ -9,11 +9,11 @@ import numpy as np
 # ------------------------------------------------------------------------
 
 
-def add_crossroad(lines: list, crossing_point: mathutils.Vector, height: float):
+def add_crossroad(lines: list, crossing_point: bpy.types.Object, height: float):
     verts = []
     number_of_lines = len(lines)
     # Mark one point as reference for distance calculation
-    reference_point = crossing_point
+    reference_point = crossing_point.location
     # Use a copy of the lines to remove the lines already used and only consider the remaining lines
     lines_copy = lines.copy()
     # Iterate over all lines and collect the vertices for the crossroad plane
@@ -46,7 +46,8 @@ def add_crossroad(lines: list, crossing_point: mathutils.Vector, height: float):
     # Create the crossroad plane and link it to its corresponding collection
     mesh = bpy.data.meshes.new("Crossroad Mesh")
     mesh.from_pydata(verts, [], faces)
-    crossroad = bpy.data.objects.new("Crossroad", mesh)
+    crossroad_name = "Crossroad_" + crossing_point.name
+    crossroad = bpy.data.objects.new(crossroad_name, mesh)
     link_to_collection(crossroad, "Crossroads")
 
     # Edit the crossroad plane
@@ -59,6 +60,24 @@ def add_crossroad(lines: list, crossing_point: mathutils.Vector, height: float):
 
     # Set the origin to the center of the mesh (Hint: This overwrites the location.)
     set_origin(crossroad)
+
+
+def add_crossroads():
+    crossing_points = get_crossing_points()
+    for crossing_point in crossing_points:
+        curves_number = int(crossing_point["Number of Curves"])
+        lines = []
+
+        for i in range(curves_number):
+            curve_name = crossing_point[f"Curve {i+1}"]
+            if curve_name:
+                left_line, right_line = get_line_meshes(curve_name)
+                if left_line:
+                    lines.append(left_line)
+                if right_line:
+                    lines.append(right_line)
+
+        add_crossroad(lines, crossing_point, 0.1)
 
     return {'FINISHED'}
 
@@ -275,16 +294,12 @@ def apply_transform(object: bpy.types.Object, properties: bool = True):
 
 def delete(collections):
     for collection_name in collections:
-        collection = bpy.data.collections.get(collection_name)
+        objects = get_objects_from_collection(collection_name)
 
-        if collection is not None:
-            # Find all objects in the collection, delete them and delete the collection
-            objects = [obj for obj in collection.objects]
+        while objects:
+            bpy.data.objects.remove(objects.pop())
 
-            while objects:
-                bpy.data.objects.remove(objects.pop())
-
-            bpy.data.collections.remove(collection)
+        remove_collection(collection_name)
 
     return {'FINISHED'}
 
@@ -308,6 +323,27 @@ def get_closest_point(point_1: mathutils.Vector, point_2: mathutils.Vector, refe
     return point_1 if distance_1 < distance_2 else point_2
 
 
+def get_crossing_points():
+    return get_objects_from_collection("Nodes")
+
+
+def get_line_meshes(curve_name: str):
+    left_line = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
+    right_line = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
+    return left_line, right_line
+
+
+def get_objects_from_collection(collection_name: str):
+    collection = bpy.data.collections.get(collection_name)
+
+    if collection:
+        # Find all objects in the collection
+        objects = [obj for obj in collection.objects]
+        return objects
+
+    return []
+
+
 def get_visible_curves():
     # Select all visible (not hidden) curves
     objects = bpy.context.scene.objects
@@ -322,6 +358,13 @@ def link_to_collection(mesh: bpy.types.Object, collection_name: str):
         bpy.context.scene.collection.children.link(collection)
 
     collection.objects.link(mesh)
+
+
+def remove_collection(collection_name: str):
+    collection = bpy.data.collections.get(collection_name)
+
+    if collection:
+        bpy.data.collections.remove(collection)
 
 
 def set_origin(object: bpy.types.Object):

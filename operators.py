@@ -3,7 +3,7 @@ import bpy
 
 # from . import config
 from .datamanager import CG_DataManager
-from .util import add_crossroad, add_roads, delete, get_visible_curves, show_message_box
+from .util import add_crossroads, add_roads, delete, get_visible_curves, show_message_box
 
 
 # ------------------------------------------------------------------------
@@ -100,16 +100,4 @@ class CG_CreateCrossroads(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # Get the names of all visible (not hidden) curves
-        curves = get_visible_curves()
-        curve_names = [curve.name for curve in curves]
-        curve_names.sort()
-
-        lines = []
-        for curve_name in curve_names:
-            for side in ["Left", "Right"]:
-                line = bpy.data.objects.get(f"Line_Mesh_Kerb_{side}_{curve_name}")
-                lines.append(line)
-
-        crossing_point = bpy.data.objects.get("Plane")
-        return add_crossroad(lines, crossing_point.location, 0.1)
+        return add_crossroads()
