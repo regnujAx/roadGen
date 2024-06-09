@@ -1,7 +1,8 @@
 import bpy
 import bmesh
-import mathutils
 import numpy as np
+
+from mathutils import kdtree, Vector
 
 
 # ------------------------------------------------------------------------
@@ -9,43 +10,49 @@ import numpy as np
 # ------------------------------------------------------------------------
 
 
-def add_crossroad(lines: list, crossing_point: bpy.types.Object, height: float):
-    verts = []
-    number_of_lines = len(lines)
+def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float = 0.1):
+    vertices = []
+    vertices_to_remove = []
+    for curve in curves:
+        # Cast a ray from the crossing point to find the correct face and vertices of the curve
+        bottom_vertices = get_outer_bottom_vertices(curve, crossing_point)
+        # Add the outer bottom vertices to a list for every curve
+        vertices_to_remove.extend(bottom_vertices)
+
+    number_of_vertices = len(vertices_to_remove)
     # Mark one point as reference for distance calculation
     reference_point = crossing_point.location
-    # Use a copy of the lines to remove the lines already used and only consider the remaining lines
-    lines_copy = lines.copy()
-    # Iterate over all lines and collect the vertices for the crossroad plane
-    for i in range(number_of_lines):
-        if i < number_of_lines - 1:
-            # Every road has two lines, so we have to check which one is closer (for the correct order of the plane vertices)
-            vertex_0 = get_closest_line_point(lines_copy[0], reference_point)
-            vertex_1 = get_closest_line_point(lines_copy[1], reference_point)
+    # Iterate over all vertices and collect the vertices in the correct order for the crossroad plane
+    for i in range(number_of_vertices):
+        if i < number_of_vertices - 1:
+            vertex_0 = vertices_to_remove[0]
+            vertex_1 = vertices_to_remove[1]
+            # Get the closest vertex with respect to the reference point
             vertex = get_closest_point(vertex_0, vertex_1, reference_point)
-            # Remove the closest line
-            line_to_remove = lines_copy[0] if vertex == vertex_0 else lines_copy[1]
-            # Set the current point as reference_point for the next iteration (to find the nearest point)
+            # Remove the closest vertex from the list
+            vertex_to_remove = vertex_0 if vertex == vertex_0 else vertex_1
+            # Set the current point as reference_point for the next iteration (to find the closest point)
             reference_point = vertex
         else:
-            # Use the remaining line
-            vertex = get_closest_line_point(lines_copy[0], reference_point)
-            line_to_remove = lines_copy[0]
+            # Use the remaining vertex and then remove it
+            vertex = vertices_to_remove[0]
+            vertex_to_remove = vertex
 
-        lines_copy.remove(line_to_remove)
-        vertex_vec = mathutils.Vector((vertex.x, vertex.y, 0.0))
-        verts.append(vertex_vec)
+        vertices_to_remove.remove(vertex_to_remove)
+        vertex_vec = Vector((vertex.x, vertex.y, 0.0))
+        vertices.append(vertex_vec)
 
-    # Collect the face (only one) for the crossroad plane (assumption: all vertices are in the correct order)
+    # Create the face (only one) based on the vertices for the crossroad plane
+    # (Assumption: All vertices are in the correct order.)
     faces = []
     face = []
-    for index in range(len(verts)):
+    for index in range(len(vertices)):
         face.append(index)
     faces.append(face)
 
     # Create the crossroad plane and link it to its corresponding collection
     mesh = bpy.data.meshes.new("Crossroad Mesh")
-    mesh.from_pydata(verts, [], faces)
+    mesh.from_pydata(vertices, [], faces)
     crossroad_name = "Crossroad_" + crossing_point.name
     crossroad = bpy.data.objects.new(crossroad_name, mesh)
     link_to_collection(crossroad, "Crossroads")
@@ -66,18 +73,15 @@ def add_crossroads():
     crossing_points = get_crossing_points()
     for crossing_point in crossing_points:
         curves_number = int(crossing_point["Number of Curves"])
-        lines = []
+        curves = []
 
         for i in range(curves_number):
             curve_name = crossing_point[f"Curve {i+1}"]
             if curve_name:
-                left_line, right_line = get_line_meshes(curve_name)
-                if left_line:
-                    lines.append(left_line)
-                if right_line:
-                    lines.append(right_line)
+                curve = bpy.data.objects[curve_name]
+                curves.append(curve)
 
-        add_crossroad(lines, crossing_point, 0.1)
+        add_crossroad(curves, crossing_point)
 
     return {'FINISHED'}
 
@@ -89,12 +93,12 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
 
     # Translate the created mesh according to the lane width and the number of lanes per road side (i.e. index)
     if "Lane" in name:
-        vec = mathutils.Vector((0.0, lane_width * index - lane_width/2, 0.0))
+        vec = Vector((0.0, lane_width * index - lane_width/2, 0.0))
         mesh.dimensions[1] = lane_width
     elif "Kerb" in name:
         # Keep for kerbs the original z location
         sign = -1 if index < 0 else 1
-        vec = mathutils.Vector((0.0, lane_width * index + (sign * mesh.dimensions[1]/2), mesh.location[2]))
+        vec = Vector((0.0, lane_width * index + (sign * mesh.dimensions[1]/2), mesh.location[2]))
     mesh.location += vec
 
     # Apply the correct curve for the mesh modifiers
@@ -197,23 +201,14 @@ def add_line_following_mesh(mesh_name: str):
 
     line_mesh.select_set(True)
 
-    # Create a KD-Tree to perform a spatial search
-    size = len(top_faces_center)
-    kd = mathutils.kdtree.KDTree(size)
-    for i, v in enumerate(top_faces_center):
-        kd.insert(v.xyz, i)
-
-    # Balance (build) the KD-Tree
-    kd.balance()
+    points = find_closest_points(top_faces_center, top_faces_center[0])
 
     bm = bmesh.new()
-    # Take the first point of the top faces centers,
-    # calculate the distances of all other points to it
-    # and add them as vertices to the new mesh
-    for (co, index, dist) in kd.find_n(top_faces_center[0], size):
+    # Add the top faces centers as vertices to the new mesh
+    for (co, index, dist) in points:
         bm.verts.new(co)
 
-    # Ensure internal data needed for int subscription is initialized with verts, e.g. bm.verts[index]
+    # Ensure internal data needed for int subscription is initialized with vertices, e.g. bm.verts[index]
     bm.verts.ensure_lookup_table()
 
     for i in range(len(bm.verts) - 1):
@@ -248,7 +243,7 @@ def add_object_to_mesh(mesh_name: str, positions: list):
             if total_length > pos:
                 v0 = edge.verts[0]
                 v1 = edge.verts[1]
-                vec = mathutils.Vector(v1.co) - mathutils.Vector(v0.co)
+                vec = Vector(v1.co) - Vector(v0.co)
                 unit_vec = vec / edge_length
                 object_position = v0.co + unit_vec * p
                 break
@@ -264,13 +259,9 @@ def add_object_to_mesh(mesh_name: str, positions: list):
             bm = bmesh.from_edit_mesh(mesh_data)
             bm.verts.ensure_lookup_table()
 
-            # Create a KD-Tree to perform a spatial search
-            kd = mathutils.kdtree.KDTree(len(bm.verts))
-            for i, v in enumerate(bm.verts):
-                kd.insert(v.co, i)
+            bm_vertices = [vert.co for vert in bm.verts]
 
-            # Balance (build) the KD-Tree
-            kd.balance()
+            kd = create_kdtree(bm_vertices, len(bm_vertices))
 
             # Decrease the "height" (z-coordinate) of all vertices in a certain radius that are higher than 0
             radius = 2
@@ -292,6 +283,28 @@ def apply_transform(object: bpy.types.Object, properties: bool = True):
     object.select_set(False)
 
 
+def calculate_ray_cast(origin: Vector, closest_curve_point: Vector):
+    # Calculate the direction for the ray cast and set its z-coordinat to 0.0 to make it easier to find the correct face
+    direction = closest_curve_point - origin
+    direction.z = 0.0
+
+    depsgraph = bpy.context.view_layer.depsgraph
+    # Return only the normal of the hit face (i.e. the third element of the tuple)
+    return bpy.context.scene.ray_cast(depsgraph, origin, direction)[2]
+
+
+def create_kdtree(list, size):
+    # Create a KD-Tree to perform a spatial search
+    kd = kdtree.KDTree(size)
+    for i, v in enumerate(list):
+        kd.insert(v, i)
+
+    # Balance (build) the KD-Tree
+    kd.balance()
+
+    return kd
+
+
 def delete(collections):
     for collection_name in collections:
         objects = get_objects_from_collection(collection_name)
@@ -304,14 +317,20 @@ def delete(collections):
     return {'FINISHED'}
 
 
-def get_closest_line_point(line: bpy.types.Object, reference_point: mathutils.Vector):
-    # Check for the line which of its start/end vertices is the closest to a reference point
-    v_start = line.data.vertices[0].co.xyz
-    v_end = line.data.vertices[-1].co.xyz
-    return get_closest_point(v_start, v_end, reference_point)
+def find_closest_points(list, reference_point: Vector):
+    num_vertices = len(list)
+    kd = create_kdtree(list, num_vertices)
+    # Sort the points by distance to the reference point and return them
+    return kd.find_n(reference_point, num_vertices)
 
 
-def get_closest_point(point_1: mathutils.Vector, point_2: mathutils.Vector, reference_point: mathutils.Vector):
+def get_closest_curve_point(curve: bpy.types.Object, reference_point: Vector):
+    first_curve_point = curve.data.splines[0].bezier_points[0].co
+    end_curve_point = curve.data.splines[0].bezier_points[-1].co
+    return get_closest_point(first_curve_point, end_curve_point, reference_point)
+
+
+def get_closest_point(point_1: Vector, point_2: Vector, reference_point: Vector):
     distance_1 = np.sqrt(np.sum([
         (point_1.x - reference_point.x)**2,
         (point_1.y - reference_point.y)**2,
@@ -321,6 +340,10 @@ def get_closest_point(point_1: mathutils.Vector, point_2: mathutils.Vector, refe
         (point_2.y - reference_point.y)**2,
         (point_2.z - reference_point.z)**2]))
     return point_1 if distance_1 < distance_2 else point_2
+
+
+def get_coplanar_faces(object, normal, road_height=0.1, threshold=0.001):
+    return [f for f in object.data.polygons if f.normal.angle(normal) < threshold and f.center.z < road_height]
 
 
 def get_crossing_points():
@@ -342,6 +365,49 @@ def get_objects_from_collection(collection_name: str):
         return objects
 
     return []
+
+
+def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point):
+    # Take the crossing point as the origin for the ray cast
+    origin = crossing_point.location.xyz
+
+    # Figure out the correct curve point
+    closest_curve_point = get_closest_curve_point(curve, origin)
+
+    # Determine the normal of the hit face when casting a ray from the origin to the correct curve point
+    normal = calculate_ray_cast(origin, closest_curve_point)
+
+    # Determine the road lane meshes corresponding to the curve
+    road_lanes = get_objects_from_collection("Road Lanes")
+    curve_road_lanes = [road_lane for road_lane in road_lanes if road_lane.name.endswith(curve.name)]
+
+    z_threshold = 0.0001
+    bottom_vertices = []
+
+    # Iterate over all road lanes of the curve
+    for curve_road_lane in curve_road_lanes:
+        vertices = []
+        faces = get_coplanar_faces(curve_road_lane, normal)
+
+        for face in faces:
+            # Iterate over all edges of each coplanar face and collect the bottom vertices
+            for (index_0, index_1) in face.edge_keys:
+                vertex_0 = curve_road_lane.data.vertices[index_0].co
+                vertex_1 = curve_road_lane.data.vertices[index_1].co
+                delta_z = abs(vertex_0.z - vertex_1.z)
+
+                if delta_z <= z_threshold:
+                    if vertex_0 not in vertices and vertex_0.z <= 0.001:
+                        vertices.append(vertex_0)
+                    if vertex_1 not in vertices and vertex_1.z <= 0.001:
+                        vertices.append(vertex_1)
+
+        vertices = find_closest_points(vertices, closest_curve_point)
+
+        # Append only the furthest vertex
+        bottom_vertices.append(vertices[-1][0])
+
+    return bottom_vertices
 
 
 def get_visible_curves():

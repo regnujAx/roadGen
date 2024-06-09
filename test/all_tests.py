@@ -12,7 +12,7 @@ def deleteCustomProperties(object):
 
 
 def cleanup():
-    for collection_name in ["Road Lanes", "Kerbs", "Line Meshes"]:
+    for collection_name in ["Crossroads", "Kerbs", "Line Meshes", "Road Lanes"]:
         collection = bpy.data.collections.get(collection_name)
 
         if collection is not None:
