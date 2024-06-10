@@ -9,6 +9,7 @@ def is_visible_curve(self, object):
 #    Properties
 # ------------------------------------------------------------------------
 
+
 class CG_RoadProperties(bpy.types.PropertyGroup):
     curve : bpy.props.PointerProperty(
         type=bpy.types.Object,

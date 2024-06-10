@@ -1,10 +1,10 @@
-### To use this add-on you have to zip the directory containing this file (CityGen)
-### and install the zip in the .blend file.
-### To install the add-on open your .blend file and go to Edit -> Preferences -> Add-ons -> Install.
-### Navigate to the directory where the zip-file is located that contains the CityGen directory and select it.
-### The add-on should now listed and you have to enable it by clicking the checkbox.
-### If you don't see it, select User in the dropdown.
-### When enabled, you can use it in the 3D Viewport Object Mode.
+# To use this add-on you have to zip the directory containing this file (CityGen)
+# and install the zip in the .blend file.
+# To install the add-on open your .blend file and go to Edit -> Preferences -> Add-ons -> Install.
+# Navigate to the directory where the zip-file is located that contains the CityGen directory and select it.
+# The add-on should now listed and you have to enable it by clicking the checkbox.
+# If you don't see it, select User in the dropdown.
+# When enabled, you can use it in the 3D Viewport Object Mode.
 
 
 bl_info = {
@@ -22,6 +22,7 @@ bl_info = {
 #    General and Blender Dependent Imports
 # ------------------------------------------------------------------------
 
+
 import bpy
 import os
 import sys
@@ -29,9 +30,14 @@ import sys
 from importlib import reload
 
 
+# Make sure imports work even when main folder is named differently
+if __name__ != "cityGen":
+    sys.modules["cityGen"] = sys.modules[__name__]
+
 # ------------------------------------------------------------------------
 #    Project Dependent Imports
 # ------------------------------------------------------------------------
+
 
 dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -40,11 +46,14 @@ if dir not in sys.path:
 
 
 from . import (datamanager, operators, properties, util)
+from .generators import crossroadGenerator, roadGenerator
 
 reload(datamanager)
 reload(util)
 reload(operators)
 reload(properties)
+reload(crossroadGenerator)
+reload(roadGenerator)
 
 from .properties import *
 from .operators import *
@@ -53,6 +62,7 @@ from .operators import *
 # ------------------------------------------------------------------------
 #    Panel in Object Mode
 # ------------------------------------------------------------------------
+
 
 class CG_RoadPanel(bpy.types.Panel):
     bl_label = "Road Generation"
@@ -97,15 +107,16 @@ class CG_RoadPanel(bpy.types.Panel):
 #    Registration of Properties, Operators and the Panel
 # ------------------------------------------------------------------------
 
+
 classes = (
     CG_RoadProperties,
-    CG_CreateOneRoad,
-    CG_CreateRoadsFromCollection,
-    CG_CreateRoads,
+    CG_CreateCrossroads,
     CG_CreateRoadData,
+    CG_CreateRoads,
+    CG_CreateRoadsFromCollection,
+    CG_CreateOneRoad,
     CG_DeleteAll,
     CG_RoadPanel,
-    CG_CreateCrossroads,
     # CG_BuildingPanel
 )
 

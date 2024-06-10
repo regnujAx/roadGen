@@ -3,30 +3,57 @@ import bpy
 
 # from . import config
 from .datamanager import CG_DataManager
-from .util import add_crossroads, add_roads, delete, get_visible_curves, show_message_box
+from .generators.roadGenerator import CG_RoadGenerator
+from .generators.crossroadGenerator import CG_CrossroadGenerator
+from .util import delete, get_visible_curves, show_message_box
 
 
 # ------------------------------------------------------------------------
 #    Operators
 # ------------------------------------------------------------------------
 
-class CG_CreateOneRoad(bpy.types.Operator):
-    """Create one road from a specified curve in the scene"""
-    bl_label = "Create One Road"
-    bl_idname = "cg.create_one_road"
+
+class CG_CreateCrossroads(bpy.types.Operator):
+    """Create crossroads for all curves in the scene"""
+    bl_label = "Create Crossroads"
+    bl_idname = "cg.create_crossroads"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        road_props = context.scene.road_props
-        curve = road_props.curve
+        crossroad_generator = CG_CrossroadGenerator()
+        crossroad_generator.add_crossroads()
 
-        if curve is None:
-            show_message_box("No curve selected!", "Please select a curve if you want to use this feature.")
-            self.report({'INFO'}, "Please select a curve if you want to use this feature.")
+        return {'FINISHED'}
+        # return add_crossroads()
 
-            return {'FINISHED'}
 
-        return add_roads([curve])
+class CG_CreateRoadData(bpy.types.Operator):
+    """Create road data for all visible (not hidden) curves in the scene"""
+    bl_label = "Create Road Data"
+    bl_idname = "cg.create_road_data"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        datamanager = CG_DataManager()
+        datamanager.createRoadData()
+
+        return {'FINISHED'}
+
+
+class CG_CreateRoads(bpy.types.Operator):
+    """Create roads from all visible (not hidden) curves in the scene"""
+    bl_label = "Create All Roads"
+    bl_idname = "cg.create_roads"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        curves = get_visible_curves()
+        kerb_mesh_template = bpy.data.objects.get("Kerb")
+
+        road_generator = CG_RoadGenerator(curves, kerb_mesh_template)
+        road_generator.add_roads()
+
+        return {'FINISHED'}
 
 
 class CG_CreateRoadsFromCollection(bpy.types.Operator):
@@ -46,32 +73,34 @@ class CG_CreateRoadsFromCollection(bpy.types.Operator):
 
             return {'FINISHED'}
 
-        return add_roads(curves)
+        kerb_mesh_template = bpy.data.objects.get("Kerb")
+
+        road_generator = CG_RoadGenerator(curves, kerb_mesh_template)
+        road_generator.add_roads()
+
+        return {'FINISHED'}
 
 
-class CG_CreateRoads(bpy.types.Operator):
-    """Create roads from all visible (not hidden) curves in the scene"""
-    bl_label = "Create All Roads"
-    bl_idname = "cg.create_roads"
+class CG_CreateOneRoad(bpy.types.Operator):
+    """Create one road from a specified curve in the scene"""
+    bl_label = "Create One Road"
+    bl_idname = "cg.create_one_road"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        curves = get_visible_curves()
+        road_props = context.scene.road_props
+        curve = road_props.curve
 
-        return add_roads(curves)
+        if curve is None:
+            show_message_box("No curve selected!", "Please select a curve if you want to use this feature.")
+            self.report({'INFO'}, "Please select a curve if you want to use this feature.")
 
+            return {'FINISHED'}
 
-class CG_CreateRoadData(bpy.types.Operator):
-    """Create road data for all curves in the scene"""
-    bl_label = "Create Road Data"
-    bl_idname = "cg.create_road_data"
-    bl_options = {'REGISTER', 'UNDO'}
+        kerb_mesh_template = bpy.data.objects.get("Kerb")
 
-    def execute(self, context):
-        curves = get_visible_curves()
-
-        datamanager = CG_DataManager(curves)
-        datamanager.createRoadData()
+        road_generator = CG_RoadGenerator([curve], kerb_mesh_template)
+        road_generator.add_roads()
 
         return {'FINISHED'}
 
@@ -91,13 +120,3 @@ class CG_DeleteAll(bpy.types.Operator):
         wm = context.window_manager
 
         return wm.invoke_confirm(self, event)
-
-
-class CG_CreateCrossroads(bpy.types.Operator):
-    """Create crossroads for all curves in the scene"""
-    bl_label = "Create Crossroads"
-    bl_idname = "cg.create_crossroads"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        return add_crossroads()

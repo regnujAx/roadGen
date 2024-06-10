@@ -1,6 +1,9 @@
+from .util import get_visible_curves
+
+
 class CG_DataManager():
-    def __init__(self, curves):
-        self.curves = curves
+    def __init__(self):
+        self.curves = get_visible_curves()
 
     def createCrossroadData(self):
         return {'FINISHED'}
@@ -34,5 +37,3 @@ class CG_DataManager():
                 property_manager = curve.id_properties_ui("Right Dropped Kerbs")
                 property_manager.update(description="Indicates where (in meters, separated by commas) there is a dropped kerb "
                                         "on the right-hand side of the road")
-
-        return {'FINISHED'}
