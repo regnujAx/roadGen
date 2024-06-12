@@ -51,15 +51,20 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     mesh.data = mesh_template.data.copy()
     mesh.name = name + "_" + curve.name
 
+    x, y, z = 0.0, 0.0, 0.0
     # Translate the created mesh according to the lane width and the number of lanes per road side (i.e. index)
     if "Lane" in name:
-        vec = mathutils.Vector((0.0, lane_width * index - lane_width/2, 0.0))
+        y = lane_width * index - lane_width/2
         mesh.dimensions[1] = lane_width
     elif "Kerb" in name:
-        # Keep for kerbs the original z location
+        # Calculate an offset for the x-coordinate depending on the kerb template
+        x = mesh_template.dimensions[0]/4
+        # Calculate an offset for the y-coordinate depending on the lane width, index and side of the kerb (right:neg, left:pos)
         sign = -1 if index < 0 else 1
-        vec = mathutils.Vector((0.0, lane_width * index + (sign * mesh.dimensions[1]/2), mesh.location[2]))
-    mesh.location += vec
+        y = lane_width * index + (sign * mesh.dimensions[1]/2)
+        # Keep for the kerb its original z location
+        z = mesh.location[2]
+    mesh.location += mathutils.Vector((x, y, z))
 
     # Apply the correct curve for the mesh modifiers
     mesh.modifiers['Array'].curve = curve

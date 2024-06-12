@@ -12,24 +12,14 @@ from ..util import (
 
 class CG_CrossroadGenerator:
     def __init__(self):
-        # self.curves = curves
         self.crossing_points = get_crossing_points()
 
     def add_crossroads(self):
         for crossing_point in self.crossing_points:
             curves_number = int(crossing_point["Number of Curves"])
-            # curves = []
-
-            # for i in range(curves_number):
-            #     curve_name = crossing_point[f"Curve {i+1}"]
-            #     if curve_name:
-            #         curve = bpy.data.objects[curve_name]
-            #         curves.append(curve)
 
             curves = get_curves(crossing_point, curves_number)
             add_crossroad(curves, crossing_point)
-
-        # return {'FINISHED'}
 
 
 def get_curves(crossing_point: bpy.types.Object, curves_number: int):
@@ -134,6 +124,7 @@ def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point):
 
     # Determine the road lane meshes corresponding to the curve
     road_lanes = get_objects_from_collection("Road Lanes")
+    # ToDo: endswith() is not optimal for multiple road lanes per side
     curve_road_lanes = [road_lane for road_lane in road_lanes if road_lane.name.endswith(curve.name)]
 
     z_threshold = 0.0001
