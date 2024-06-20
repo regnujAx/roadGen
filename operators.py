@@ -24,7 +24,28 @@ class CG_CreateCrossroads(bpy.types.Operator):
         crossroad_generator.add_crossroads()
 
         return {'FINISHED'}
-        # return add_crossroads()
+
+
+class CG_CreateOneRoad(bpy.types.Operator):
+    """Create one road from a specified curve in the scene"""
+    bl_label = "Create One Road"
+    bl_idname = "cg.create_one_road"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        road_props = context.scene.road_props
+        curve = road_props.curve
+
+        if curve is None:
+            show_message_box("No curve selected!", "Please select a curve if you want to use this feature.")
+            self.report({'INFO'}, "Please select a curve if you want to use this feature.")
+
+            return {'FINISHED'}
+
+        road_generator = CG_RoadGenerator([curve])
+        road_generator.add_roads()
+
+        return {'FINISHED'}
 
 
 class CG_CreateRoadData(bpy.types.Operator):
@@ -48,9 +69,8 @@ class CG_CreateRoads(bpy.types.Operator):
 
     def execute(self, context):
         curves = get_visible_curves()
-        kerb_mesh_template = bpy.data.objects.get("Kerb")
 
-        road_generator = CG_RoadGenerator(curves, kerb_mesh_template)
+        road_generator = CG_RoadGenerator(curves)
         road_generator.add_roads()
 
         return {'FINISHED'}
@@ -73,33 +93,7 @@ class CG_CreateRoadsFromCollection(bpy.types.Operator):
 
             return {'FINISHED'}
 
-        kerb_mesh_template = bpy.data.objects.get("Kerb")
-
-        road_generator = CG_RoadGenerator(curves, kerb_mesh_template)
-        road_generator.add_roads()
-
-        return {'FINISHED'}
-
-
-class CG_CreateOneRoad(bpy.types.Operator):
-    """Create one road from a specified curve in the scene"""
-    bl_label = "Create One Road"
-    bl_idname = "cg.create_one_road"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        road_props = context.scene.road_props
-        curve = road_props.curve
-
-        if curve is None:
-            show_message_box("No curve selected!", "Please select a curve if you want to use this feature.")
-            self.report({'INFO'}, "Please select a curve if you want to use this feature.")
-
-            return {'FINISHED'}
-
-        kerb_mesh_template = bpy.data.objects.get("Kerb")
-
-        road_generator = CG_RoadGenerator([curve], kerb_mesh_template)
+        road_generator = CG_RoadGenerator(curves)
         road_generator.add_roads()
 
         return {'FINISHED'}
@@ -114,7 +108,9 @@ class CG_DeleteAll(bpy.types.Operator):
     def execute(self, context):
         collections = ["Crossroads", "Kerbs", "Line Meshes", "Road Lanes"]
 
-        return delete(collections)
+        delete(collections)
+
+        return {'FINISHED'}
 
     def invoke(self, context, event):
         wm = context.window_manager

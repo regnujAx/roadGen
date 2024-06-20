@@ -12,7 +12,7 @@ class CG_DataManager():
         for curve in self.curves:
             if curve.get("Lane Width") is None:
                 curve["Lane Width"] = 2.50
-                # Edit the propertiy
+                # Edit the property
                 property_manager = curve.id_properties_ui("Lane Width")
                 property_manager.update(soft_min=1, soft_max=4, subtype='DISTANCE')
             if curve.get("Left Lanes") is None:

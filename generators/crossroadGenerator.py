@@ -92,19 +92,26 @@ def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float 
     set_origin(crossroad)
 
 
-def calculate_ray_cast(origin: mathutils.Vector, closest_curve_point: mathutils.Vector):
-    # Calculate the direction for the ray cast and set its z-coordinat to 0.0 to make it easier to find the correct face
-    direction = closest_curve_point - origin
+def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.Vector, ray_end: mathutils.Vector):
+    # Translate the begin and the end of the ray into local space of the road lane
+    location = curve_road_lane.location
+    origin = ray_begin - location
+    destination = ray_end - location
+
+    # Calculate the direction for the ray cast and set its z-coordinate to 0.0 to make it easier to find the correct face
+    direction = destination - origin
     direction.z = 0.0
 
-    depsgraph = bpy.context.view_layer.depsgraph
-    # Return only the normal of the hit face (i.e. the third element of the tuple)
-    return bpy.context.scene.ray_cast(depsgraph, origin, direction)[2]
+    # Return only if the road lane is hit, the location and the normal of the hit face
+    hit, location, normal, index = curve_road_lane.ray_cast(origin, direction)
+    return hit, location, normal
 
 
 def get_closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
-    first_curve_point = curve.data.splines[0].bezier_points[0].co
-    end_curve_point = curve.data.splines[0].bezier_points[-1].co
+    # Get the curve end points in world space
+    m = curve.matrix_world
+    first_curve_point = m @ curve.data.splines[0].bezier_points[0].co
+    end_curve_point = m @ curve.data.splines[0].bezier_points[-1].co
     return get_closest_point(first_curve_point, end_curve_point, reference_point)
 
 
@@ -112,45 +119,68 @@ def get_crossing_points():
     return get_objects_from_collection("Nodes")
 
 
-def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point):
-    # Take the crossing point as the origin for the ray cast
-    origin = crossing_point.location.xyz
+def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types.Object):
+    # Take the crossing point as the begin for the ray cast
+    ray_begin = crossing_point.location
 
-    # Figure out the correct curve point
-    closest_curve_point = get_closest_curve_point(curve, origin)
-
-    # Determine the normal of the hit face when casting a ray from the origin to the correct curve point
-    normal = calculate_ray_cast(origin, closest_curve_point)
+    # Figure out the correct curve point and use it as the begin of the ray
+    ray_end = get_closest_curve_point(curve, ray_begin)
 
     # Determine the road lane meshes corresponding to the curve
     road_lanes = get_objects_from_collection("Road Lanes")
-    # ToDo: endswith() is not optimal for multiple road lanes per side
-    curve_road_lanes = [road_lane for road_lane in road_lanes if road_lane.name.endswith(curve.name)]
+    # ToDo: `endswith()` and `in` are not optimal for multiple road lanes per side and are linked to specific name conventions
+    # `in` presupposes that the name of the first curve is indexed (i.e. BezierCurve.000 instead of BezierCurve)
+    curve_road_lanes = [road_lane for road_lane in road_lanes if curve.name in road_lane.name]
+    # curve_road_lanes = [road_lane for road_lane in road_lanes if road_lane.name.endswith(curve.name)]
 
-    z_threshold = 0.0001
-    bottom_vertices = []
+    outer_bottom_vertices = []
+    locations = []
+    normals = []
 
     # Iterate over all road lanes of the curve
+    for curve_road_lane in curve_road_lanes:
+        hit, location, normal = calculate_ray_cast(curve_road_lane, ray_begin, ray_end)
+        if hit:
+            # The ray cast can hit multiple road lanes so all should be saved
+            locations.append(location + curve_road_lane.location)
+            normals.append(normal)
+
+    # Remove all "wrong" hit locations and normals (i.e. keep only the nearest to the crossing point/begin of the ray)
+    index = 0
+    while len(locations) > 1:
+        location_0 = locations[index]
+        location_1 = locations[index+1]
+        nearest_location = get_closest_point(location_0, location_1, ray_begin)
+        index_to_remove = 0 if nearest_location == location_1 else 1
+        del locations[index_to_remove]
+        del normals[index_to_remove]
+
+    z_threshold = 0.001
+    # Use the remaining normal to find the coplanar faces
+    normal = normals[0]
+
     for curve_road_lane in curve_road_lanes:
         vertices = []
         faces = get_coplanar_faces(curve_road_lane, normal)
 
         for face in faces:
-            # Iterate over all edges of each coplanar face and collect the bottom vertices
+            # Iterate over all edges of each coplanar face but consider only vertical edges and collect their bottom vertices
             for (index_0, index_1) in face.edge_keys:
                 vertex_0 = curve_road_lane.data.vertices[index_0].co
                 vertex_1 = curve_road_lane.data.vertices[index_1].co
                 delta_z = abs(vertex_0.z - vertex_1.z)
 
                 if delta_z <= z_threshold:
-                    if vertex_0 not in vertices and vertex_0.z <= 0.001:
+                    if vertex_0 not in vertices and vertex_0.z <= z_threshold:
                         vertices.append(vertex_0)
-                    if vertex_1 not in vertices and vertex_1.z <= 0.001:
+                    if vertex_1 not in vertices and vertex_1.z <= z_threshold:
                         vertices.append(vertex_1)
 
-        vertices = find_closest_points(vertices, closest_curve_point)
+        location = curve_road_lane.location
+        # Keep only the closest vertices to the end of the ray of the bottom vertices
+        closest_vertices = find_closest_points(vertices, ray_end - location)
 
-        # Append only the furthest vertex
-        bottom_vertices.append(vertices[-1][0])
+        # Append only the furthest vertex (in global space) to the return list
+        outer_bottom_vertices.append(closest_vertices[-1][0] + location)
 
-    return bottom_vertices
+    return outer_bottom_vertices

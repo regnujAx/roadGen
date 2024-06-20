@@ -2,22 +2,22 @@ import bpy
 import bmesh
 import mathutils
 
-from ..util import link_to_collection, apply_transform, find_closest_points, create_kdtree
+from ..util import link_to_collection, apply_rotation_and_scale, find_closest_points, create_kdtree
 
 
 class CG_RoadGenerator:
-    def __init__(self, curves, kerb_mesh_template):
+    def __init__(self, curves):
         self.curves = curves
-        self.kerb_mesh_template = kerb_mesh_template
+        self.kerb_mesh_template = bpy.data.objects.get("Kerb")
 
     def add_roads(self):
         for curve in self.curves:
             if curve.dimensions == "2D":
                 curve.dimensions = "3D"
             curve.name = curve.name.replace(".", "_")
-            # Select the curve and apply its transforms (i.e. translation, rotation, scale)
-            # but without its properties such as radius
-            apply_transform(curve, False)
+            # Select the curve and apply its rotation and scale
+            # but without its location and its properties such as radius
+            apply_rotation_and_scale(curve, False)
 
             # Get the curve's custom properties
             lane_width = curve["Lane Width"]
@@ -50,6 +50,7 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     mesh = mesh_template.copy()
     mesh.data = mesh_template.data.copy()
     mesh.name = name + "_" + curve.name
+    mesh.location = curve.location
 
     x, y, z = 0.0, 0.0, 0.0
     # Translate the created mesh according to the lane width and the number of lanes per road side (i.e. index)
@@ -78,9 +79,6 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     bpy.context.view_layer.objects.active = mesh
     for modifier in mesh.modifiers:
         bpy.ops.object.modifier_apply(modifier=modifier.name)
-
-    # Select the mesh and apply its transforms (i.e. translation, rotation, scale)
-    apply_transform(mesh)
 
 
 def add_line_following_mesh(mesh_name: str):
@@ -166,6 +164,7 @@ def add_object_to_mesh(mesh_name: str, positions: list):
 
         if object_position:
             # Edit the mesh
+            # ToDo: without edit mode
             bpy.context.view_layer.objects.active = mesh
             bpy.ops.object.mode_set(mode='EDIT')
             # Create a BMesh (for editing) from mesh data
