@@ -1,3 +1,4 @@
+import bmesh
 import bpy
 import mathutils
 import numpy as np
@@ -36,11 +37,12 @@ def delete(collections: list):
         remove_collection(collection_name)
 
 
-def find_closest_points(list: list, reference_point: mathutils.Vector):
+def find_closest_points(list: list, reference_point: mathutils.Vector, find_all: bool = True):
     num_vertices = len(list)
     kd = create_kdtree(list, num_vertices)
-    # Sort the points by distance to the reference point and return them
-    return kd.find_n(reference_point, num_vertices)
+    n = num_vertices if find_all else 1
+    # Sort the points by distance to the reference point and return one or all
+    return kd.find_n(reference_point, n)
 
 
 def get_closest_point(point_1: mathutils.Vector, point_2: mathutils.Vector, reference_point: mathutils.Vector):
@@ -56,8 +58,27 @@ def get_closest_point(point_1: mathutils.Vector, point_2: mathutils.Vector, refe
 
 
 def get_coplanar_faces(
-        object: bpy.types.Object, normal: mathutils.Vector, road_height: float = 0.1, threshold: float = 0.00001):
-    return [f for f in object.data.polygons if f.normal.angle(normal) < threshold and f.center.z < road_height]
+        object: bpy.types.Object, normal: mathutils.Vector, index: int, road_height: float = 0.1, threshold: float = 0.001):
+    data = object.data
+    bm = bmesh.new()
+    bm.from_mesh(data)
+    bm.faces.ensure_lookup_table()
+    face = bm.faces[index]
+    coplanar_faces_ids = []
+    coplanar_faces_ids.append(face.index)
+
+    # Iterate over all faces and check for each if it is coplanar to the current face
+    for i in range(len(bm.faces)):
+        for e in face.edges:
+            for link_face in e.link_faces:
+                if (link_face.normal.angle(normal) < threshold and
+                        link_face.index not in coplanar_faces_ids and
+                        link_face.calc_center_median().z < road_height):
+                    coplanar_faces_ids.append(link_face.index)
+                    face = link_face
+                    break
+
+    return [data.polygons[idx] for idx in coplanar_faces_ids]
 
 
 def get_line_meshes(curve_name: str):

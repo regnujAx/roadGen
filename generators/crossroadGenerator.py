@@ -102,9 +102,8 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.V
     direction = destination - origin
     direction.z = 0.0
 
-    # Return only if the road lane is hit, the location and the normal of the hit face
-    hit, location, normal, index = curve_road_lane.ray_cast(origin, direction)
-    return hit, location, normal
+    # Return the result of the ray cast
+    return curve_road_lane.ray_cast(origin, direction)
 
 
 def get_closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
@@ -134,34 +133,52 @@ def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types
     # curve_road_lanes = [road_lane for road_lane in road_lanes if road_lane.name.endswith(curve.name)]
 
     outer_bottom_vertices = []
+    hit_objects = []
     locations = []
     normals = []
+    indices = []
 
     # Iterate over all road lanes of the curve
     for curve_road_lane in curve_road_lanes:
-        hit, location, normal = calculate_ray_cast(curve_road_lane, ray_begin, ray_end)
+        hit, location, normal, index = calculate_ray_cast(curve_road_lane, ray_begin, ray_end)
         if hit:
             # The ray cast can hit multiple road lanes so all should be saved
+            hit_objects.append(curve_road_lane)
             locations.append(location + curve_road_lane.location)
             normals.append(normal)
+            indices.append(index)
 
     # Remove all "wrong" hit locations and normals (i.e. keep only the nearest to the crossing point/begin of the ray)
-    index = 0
+    i = 0
     while len(locations) > 1:
-        location_0 = locations[index]
-        location_1 = locations[index+1]
+        location_0 = locations[i]
+        location_1 = locations[i+1]
         nearest_location = get_closest_point(location_0, location_1, ray_begin)
         index_to_remove = 0 if nearest_location == location_1 else 1
+
+        # Delete unnecessary information
+        del hit_objects[index_to_remove]
         del locations[index_to_remove]
         del normals[index_to_remove]
+        del indices[index_to_remove]
 
     z_threshold = 0.001
-    # Use the remaining normal to find the coplanar faces
+    # Use the remaining hit object and normal to find the coplanar faces of the face with the remaining index
+    hit_object = hit_objects[0]
     normal = normals[0]
 
     for curve_road_lane in curve_road_lanes:
+        # Use the remaining index as reference for finding the coplanar faces
+        index = indices[0]
         vertices = []
-        faces = get_coplanar_faces(curve_road_lane, normal)
+
+        # Overwrite the index if the current road lane does not match the hit object
+        if curve_road_lane != hit_object:
+            faces_centers = [face.center for face in curve_road_lane.data.polygons]
+            closest_face = find_closest_points(faces_centers, ray_end - curve_road_lane.location, False)[0]
+            index = faces_centers.index(closest_face[0])
+
+        faces = get_coplanar_faces(curve_road_lane, normal, index)
 
         for face in faces:
             # Iterate over all edges of each coplanar face but consider only vertical edges and collect their bottom vertices
