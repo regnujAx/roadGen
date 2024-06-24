@@ -146,6 +146,7 @@ def add_object_to_mesh(mesh_name: str, positions: list):
     for pos in positions:
         p = pos
         total_length = 0
+
         # Iterate over all line mesh edges to find its position, which corresponds to the given position
         for edge in bm_line.edges:
             edge_length = edge.calc_length()
@@ -162,30 +163,19 @@ def add_object_to_mesh(mesh_name: str, positions: list):
 
             p -= edge_length
 
+        # Edit the mesh at the reached position
         if object_position:
-            # Edit the mesh
-            # ToDo: without edit mode
-            bpy.context.view_layer.objects.active = mesh
-            bpy.ops.object.mode_set(mode='EDIT')
-            # Create a BMesh (for editing) from mesh data
-            mesh_data = bpy.context.edit_object.data
-            bm = bmesh.from_edit_mesh(mesh_data)
-            bm.verts.ensure_lookup_table()
+            vertices_co = [vertex.co for vertex in mesh.data.vertices]
 
-            bm_vertices = [vert.co for vert in bm.verts]
-
-            kd = create_kdtree(bm_vertices, len(bm_vertices))
+            kd = create_kdtree(vertices_co, len(vertices_co))
 
             # Decrease the "height" (z-coordinate) of all vertices in a certain radius that are higher than 0
             radius = 2
             for (co, index, dist) in kd.find_range(object_position, radius):
-                vertex = bm.verts[index]
+                vertex_co = vertices_co[index]
 
-                if vertex.co[2] > 0.1:
-                    vertex.co[2] -= 0.135
-
-            bm.free()
-            bpy.ops.object.mode_set(mode='OBJECT')
+                if vertex_co.z > 0.1:
+                    vertex_co.z -= 0.135
 
     bm_line.free()
 
