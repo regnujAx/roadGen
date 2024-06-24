@@ -104,6 +104,10 @@ def get_visible_curves():
     return [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]
 
 
+def hide_collection(collection_name: str):
+    bpy.context.view_layer.layer_collection.children[collection_name].hide_viewport = True
+
+
 def link_to_collection(mesh: bpy.types.Object, collection_name: str):
     collection = bpy.data.collections.get(collection_name)
 

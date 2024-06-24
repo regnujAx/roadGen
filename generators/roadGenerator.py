@@ -2,7 +2,7 @@ import bpy
 import bmesh
 import mathutils
 
-from ..util import link_to_collection, apply_rotation_and_scale, find_closest_points, create_kdtree
+from ..util import apply_rotation_and_scale, create_kdtree, find_closest_points, hide_collection, link_to_collection
 
 
 class CG_RoadGenerator:
@@ -11,6 +11,9 @@ class CG_RoadGenerator:
         self.kerb_mesh_template = bpy.data.objects.get("Kerb")
 
     def add_roads(self):
+        if not self.kerb_mesh_template:
+            print("Check whether the object Kerb is present, it is missing.")
+
         for curve in self.curves:
             if curve.dimensions == "2D":
                 curve.dimensions = "3D"
@@ -38,8 +41,9 @@ class CG_RoadGenerator:
                     if curve[f"{side} Dropped Kerbs"]:
                         positions = [int(x) for x in curve[f"{side} Dropped Kerbs"].split(",")]
                         add_object_to_mesh(mesh_name, positions)
-            else:
-                print("Check whether the object Kerb is present, it is missing.")
+
+        # Hide the Line Meshes collection in Viewport
+        hide_collection("Line Meshes")
 
 
 # ------------------------------------------------------------------------
@@ -102,14 +106,13 @@ def add_line_following_mesh(mesh_name: str):
     # Add a new object (line mesh) using the new mesh
     line_mesh = bpy.data.objects.new(line_mesh_name, new_mesh)
 
-    # Deselect all objects to be sure that no object is selected
-    bpy.ops.object.select_all(action='DESELECT')
+    # Deselect all selected objects to ensure that no object is selected
+    for object in bpy.context.selected_objects:
+        object.select_set(False)
 
     # Link the line mesh to the correct colletion
     collection_name = "Line Meshes"
     link_to_collection(line_mesh, collection_name)
-    # Hide the Line Meshes collection in Viewport
-    bpy.context.view_layer.layer_collection.children[collection_name].hide_viewport = True
 
     line_mesh.select_set(True)
 
@@ -130,6 +133,10 @@ def add_line_following_mesh(mesh_name: str):
     # Fill line mesh's data with the BMesh
     bm.to_mesh(line_mesh.data)
     bm.free()
+
+    # Deselect the line mesh and update its location
+    line_mesh.select_set(False)
+    line_mesh.location = mesh.location
 
 
 def add_object_to_mesh(mesh_name: str, positions: list):
