@@ -1,5 +1,6 @@
 # Run in a command line tool (like git bash):
-# 'C:\Program Files\Blender Foundation\Blender 3.6\blender.exe' -b -noaudio --addons cityGen --python test\all_tests.py -- -v
+# 'C:\Program Files\Blender Foundation\Blender 3.6\blender.exe' -b -noaudio
+# --addons cityGen --python test\all_tests.py -- -v
 
 import bpy
 import unittest

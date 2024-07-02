@@ -1,7 +1,7 @@
 import bmesh
 import bpy
+import math
 import mathutils
-import numpy as np
 
 
 # ------------------------------------------------------------------------
@@ -9,9 +9,51 @@ import numpy as np
 # ------------------------------------------------------------------------
 
 
-def apply_rotation_and_scale(object: bpy.types.Object, properties: bool = True):
+def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, lane_width: float, index: int):
+    mesh = mesh_template.copy()
+    mesh.data = mesh_template.data.copy()
+    mesh.name = name + "_" + curve.name
+    mesh.location = curve.location
+
+    x, y, z = 0.0, 0.0, 0.0
+    # Translate the created mesh according to the lane width and the number of lanes per road side (i.e. index)
+    if "Lane" in name:
+        y = lane_width * index - lane_width / 2
+        mesh.dimensions[1] = lane_width
+    elif "Kerb" in name:
+        # Calculate an offset for the y-coordinate depending on the lane width, index and side of the kerb (right:neg, left:pos)
+        sign = -1 if index < 0 else 1
+        y = lane_width * index + (sign * mesh.dimensions[1]/2)
+        # Keep its original z-location for the kerb
+        z = mesh.location[2]
+    mesh.location += mathutils.Vector((x, y, z))
+
+    # Calculate and update the x-dimension of the mesh so it fits better to its curve
+    threshold = 0.001
+    x_dim = curve.data.splines[0].calc_length()
+    while x_dim > 3.0:
+        x_dim /= 2.0
+    mesh.dimensions[0] = x_dim + threshold
+
+    # Apply the correct curve for the mesh modifiers
+    mesh.modifiers['Array'].curve = curve
+    mesh.modifiers['Curve'].object = curve
+
+    # Add the created mesh to the correct collection and apply its rotation and scale
+    collection_name = "Road Lanes" if "Road_Lane" in name else "Kerbs"
+    link_to_collection(mesh, collection_name)
+    apply_transform(mesh, location=False, properties=False)
+
+    # Set the mesh as active object and apply its modifiers
+    bpy.context.view_layer.objects.active = mesh
+    for modifier in mesh.modifiers:
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+
+def apply_transform(
+        object: bpy.types.Object, location: bool = True, rotation: bool = True, scale: bool = True, properties: bool = True):
     object.select_set(True)
-    bpy.ops.object.transform_apply(location=False, properties=properties)
+    bpy.ops.object.transform_apply(location=location, rotation=rotation, scale=scale, properties=properties)
     object.select_set(False)
 
 
@@ -41,20 +83,24 @@ def find_closest_points(list: list, reference_point: mathutils.Vector, find_all:
     num_vertices = len(list)
     kd = create_kdtree(list, num_vertices)
     n = num_vertices if find_all else 1
-    # Sort the points by distance to the reference point and return one or all
+    # Sort the points by distance to the reference point and return the nearest point or all
     return kd.find_n(reference_point, n)
 
 
-def get_closest_point(point_1: mathutils.Vector, point_2: mathutils.Vector, reference_point: mathutils.Vector):
-    distance_1 = np.sqrt(np.sum([
-        (point_1.x - reference_point.x)**2,
-        (point_1.y - reference_point.y)**2,
-        (point_1.z - reference_point.z)**2]))
-    distance_2 = np.sqrt(np.sum([
-        (point_2.x - reference_point.x)**2,
-        (point_2.y - reference_point.y)**2,
-        (point_2.z - reference_point.z)**2]))
-    return point_1 if distance_1 < distance_2 else point_2
+def get_closest_point(points: list, reference_point: mathutils.Vector):
+    closest_point = points[0]
+
+    for i in range(len(points) - 1):
+        point = points[i+1]
+        vector_1 = closest_point - reference_point
+        distance_1 = math.sqrt(sum(i**2 for i in vector_1))
+        vector_2 = point - reference_point
+        distance_2 = math.sqrt(sum(i**2 for i in vector_2))
+
+        if distance_2 < distance_1:
+            closest_point = point
+
+    return closest_point
 
 
 def get_coplanar_faces(
@@ -82,9 +128,9 @@ def get_coplanar_faces(
 
 
 def get_line_meshes(curve_name: str):
-    left_line = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
-    right_line = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
-    return left_line, right_line
+    left_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
+    right_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
+    return left_line_mesh, right_line_mesh
 
 
 def get_objects_from_collection(collection_name: str):
@@ -123,6 +169,33 @@ def remove_collection(collection_name: str):
 
     if collection:
         bpy.data.collections.remove(collection)
+
+
+# def get_geometry_center(object: bpy.types.Object):
+#     sum_world_coord = [0, 0, 0]
+#     num_vertices = len(object.data.vertices)
+#     wm = object.matrix_world
+
+#     for vert in object.data.vertices:
+#         world_coord = wm @ vert.co
+#         sum_world_coord += world_coord
+
+#     sum_world_coord /= num_vertices
+
+#     return sum_world_coord
+
+
+# def set_origin(object: bpy.types.Object, crossing_point_loc: mathutils.Vector = None):
+#     old_loc = object.location
+#     if crossing_point_loc:
+#         new_loc = crossing_point_loc
+#     else:
+#         new_loc = get_geometry_center(object)
+
+#     for vert in object.data.vertices:
+#         vert.co -= new_loc - old_loc
+
+#     object.location = new_loc
 
 
 def set_origin(object: bpy.types.Object):

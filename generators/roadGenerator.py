@@ -2,7 +2,7 @@ import bpy
 import bmesh
 import mathutils
 
-from ..util import apply_rotation_and_scale, create_kdtree, find_closest_points, hide_collection, link_to_collection
+from ..util import add_mesh_to_curve, apply_transform, create_kdtree, find_closest_points, hide_collection, link_to_collection
 
 
 class CG_RoadGenerator:
@@ -20,7 +20,7 @@ class CG_RoadGenerator:
             curve.name = curve.name.replace(".", "_")
             # Select the curve and apply its rotation and scale
             # but without its location and its properties such as radius
-            apply_rotation_and_scale(curve, False)
+            apply_transform(curve, location=False, properties=False)
 
             # Get the curve's custom properties
             lane_width = curve["Lane Width"]
@@ -49,40 +49,6 @@ class CG_RoadGenerator:
 # ------------------------------------------------------------------------
 #    Helper Methods
 # ------------------------------------------------------------------------
-
-def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, lane_width: float, index: int):
-    mesh = mesh_template.copy()
-    mesh.data = mesh_template.data.copy()
-    mesh.name = name + "_" + curve.name
-    mesh.location = curve.location
-
-    x, y, z = 0.0, 0.0, 0.0
-    # Translate the created mesh according to the lane width and the number of lanes per road side (i.e. index)
-    if "Lane" in name:
-        y = lane_width * index - lane_width/2
-        mesh.dimensions[1] = lane_width
-    elif "Kerb" in name:
-        # Calculate an offset for the x-coordinate depending on the kerb template
-        x = mesh_template.dimensions[0]/4
-        # Calculate an offset for the y-coordinate depending on the lane width, index and side of the kerb (right:neg, left:pos)
-        sign = -1 if index < 0 else 1
-        y = lane_width * index + (sign * mesh.dimensions[1]/2)
-        # Keep for the kerb its original z location
-        z = mesh.location[2]
-    mesh.location += mathutils.Vector((x, y, z))
-
-    # Apply the correct curve for the mesh modifiers
-    mesh.modifiers['Array'].curve = curve
-    mesh.modifiers['Curve'].object = curve
-
-    # Add the created mesh to the correct collection
-    collection_name = "Road Lanes" if "Road_Lane" in name else "Kerbs"
-    link_to_collection(mesh, collection_name)
-
-    # Set the mesh as active object and apply its modifiers
-    bpy.context.view_layer.objects.active = mesh
-    for modifier in mesh.modifiers:
-        bpy.ops.object.modifier_apply(modifier=modifier.name)
 
 
 def add_line_following_mesh(mesh_name: str):

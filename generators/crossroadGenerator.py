@@ -1,10 +1,13 @@
 import bpy
+import math
 import mathutils
 
 from ..util import (
+    add_mesh_to_curve,
     find_closest_points,
-    get_coplanar_faces,
     get_closest_point,
+    get_coplanar_faces,
+    get_line_meshes,
     get_objects_from_collection,
     link_to_collection,
     set_origin)
@@ -22,51 +25,77 @@ class CG_CrossroadGenerator:
             add_crossroad(curves, crossing_point)
 
 
-def get_curves(crossing_point: bpy.types.Object, curves_number: int):
-    curves = []
-    for i in range(curves_number):
-        curve_name = crossing_point[f"Curve {i+1}"]
-        if curve_name:
-            curve = bpy.data.objects[curve_name]
-            curves.append(curve)
-
-    return curves
-
-
 def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float = 0.1):
-    vertices = []
+    dictionary = {}
     vertices_to_remove = []
-    for curve in curves:
-        # Cast a ray from the crossing point to find the correct face and vertices of the curve
-        bottom_vertices = get_outer_bottom_vertices(curve, crossing_point)
-        # Add the outer bottom vertices to a list for every curve
-        vertices_to_remove.extend(bottom_vertices)
 
-    number_of_vertices = len(vertices_to_remove)
-    # Mark one point as reference for distance calculation
+    # Mark one point as a reference for sorting the vertices
     reference_point = crossing_point.location
-    # Iterate over all vertices and collect the vertices in the correct order for the crossroad plane
-    for i in range(number_of_vertices):
-        if i < number_of_vertices - 1:
-            vertex_0 = vertices_to_remove[0]
-            vertex_1 = vertices_to_remove[1]
-            # Get the closest vertex with respect to the reference point
-            vertex = get_closest_point(vertex_0, vertex_1, reference_point)
-            # Remove the closest vertex from the list
-            vertex_to_remove = vertex_0 if vertex == vertex_0 else vertex_1
-            # Set the current point as reference_point for the next iteration (to find the closest point)
-            reference_point = vertex
-        else:
-            # Use the remaining vertex and then remove it
-            vertex = vertices_to_remove[0]
-            vertex_to_remove = vertex
 
+    for curve in curves:
+        # Get the outer bottom vertices of the road lanes of a curve by casting a ray from the crossing point towards the curve
+        bottom_vertices = get_outer_bottom_vertices(curve, crossing_point)
+
+        # Sort the vertices (clockwise) with respect to the reference point
+        vertex = get_closest_point([bottom_vertices[0], bottom_vertices[1]], reference_point)
+        other_vertex = bottom_vertices[0] if vertex == bottom_vertices[1] else bottom_vertices[1]
+        verts = [vertex, other_vertex]
+
+        # Add the ordered vertices and its curve to the dictionary
+        dictionary[curve.name] = verts
+
+        # Add the ordered vertices to a list to work through them one after the other
+        vertices_to_remove.extend(verts)
+
+        # Update the reference point
+        reference_point = other_vertex
+
+    vertices = []
+    first_vertex = None
+    number_of_vertices = len(vertices_to_remove)
+
+    # Convert the dictionary keys and values into lists
+    keys_list = list(dictionary.keys())
+    values_list = [v for value in dictionary.values() for v in value]
+
+    # Iterate over all vertices and collect the vertices for the crossroad plane
+    # Assumption: All vertices are in the correct order
+    for i in range(number_of_vertices):
+        vertex_0 = vertices_to_remove[0]
+
+        # Remember the first vertex in order to connect the remaining (last) vertex to it
+        if i == 0:
+            first_vertex = vertex_0
+
+        if i < number_of_vertices - 1:
+            vertex_1 = vertices_to_remove[1]
+        else:
+            vertex_1 = first_vertex
+
+        # Get the correct curves depending on the current vertices
+        position_0 = int(values_list.index(vertex_0) / 2)
+        position_1 = int(values_list.index(vertex_1) / 2)
+        curve_0 = keys_list[position_0]
+        curve_1 = keys_list[position_1]
+
+        if curve_0 != curve_1:
+            # Add a kerb between two different curves
+            add_crossroad_kerb([curve_0, curve_1], [vertex_0, vertex_1])
+
+            # Add all vertices of the created line mesh to the crossroad vertices
+            line_mesh = bpy.data.objects.get(f"Line_Mesh_Crossroad_Curve_{curve_0}_{curve_1}")
+            for vertex in line_mesh.data.vertices:
+                vertex_vec = mathutils.Vector((vertex.co.x, vertex.co.y, 0.0))
+                vertices.append(vertex_vec)
+        else:
+            vertex_vec = mathutils.Vector((vertex_0.x, vertex_0.y, 0.0))
+            vertices.append(vertex_vec)
+
+        # Remove the closest vertex from the list
+        vertex_to_remove = vertex_0
         vertices_to_remove.remove(vertex_to_remove)
-        vertex_vec = mathutils.Vector((vertex.x, vertex.y, 0.0))
-        vertices.append(vertex_vec)
 
     # Create the face (only one) based on the vertices for the crossroad plane
-    # (Assumption: All vertices are in the correct order.)
     faces = []
     face = []
     for index in range(len(vertices)):
@@ -90,6 +119,77 @@ def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float 
 
     # Set the origin to the center of the mesh (Hint: This overwrites the location.)
     set_origin(crossroad)
+    # set_origin(crossroad, crossing_point.location)
+
+
+def add_crossroad_kerb(curve_names: list, points: list):
+    reference_vectors = []
+    for i, curve_name in enumerate(curve_names):
+        left_line_mesh, right_line_mesh = get_line_meshes(curve_name)
+        location_left_mesh = left_line_mesh.location
+        location_right_mesh = right_line_mesh.location
+
+        # Get the first and last vertices of the line meshes (in global space)
+        vertex_left_0 = left_line_mesh.data.vertices[0].co + location_left_mesh
+        vertex_left_1 = left_line_mesh.data.vertices[-1].co + location_left_mesh
+        vertex_right_0 = right_line_mesh.data.vertices[0].co + location_right_mesh
+        vertex_right_1 = right_line_mesh.data.vertices[-1].co + location_right_mesh
+
+        # Determine the closest vertex to the current point
+        vertex = get_closest_point([vertex_left_0, vertex_left_1, vertex_right_0, vertex_right_1], points[i])
+
+        # Determine the correct mesh and location of the closest vertex
+        mesh = left_line_mesh if vertex == vertex_left_0 or vertex == vertex_left_1 else right_line_mesh
+        location = location_left_mesh if vertex == vertex_left_0 or vertex == vertex_left_1 else location_right_mesh
+
+        # Determine the correct index for the reference (neighbor) vertex
+        index = 1 if vertex == vertex_left_0 or vertex == vertex_right_0 else -2
+
+        # Calculate a reference vector between the closest vertex and its neighboring vertex
+        reference_vertex = mesh.data.vertices[index].co + location
+        reference_vertex.z = 0.0
+        vertex.z = 0.0
+        reference_vectors.append(vertex - reference_vertex)
+
+    # Create a new curve and change its curve type to 3D and increase its resolution
+    crv = bpy.data.curves.new('crv', 'CURVE')
+    crv.dimensions = '3D'
+    crv.resolution_u = 32
+
+    # Create a new spline in that new created curve
+    spline = crv.splines.new(type='BEZIER')
+
+    # Add one spline bezier point for each point (there is already one point by default so one additional is sufficient)
+    spline.bezier_points.add(1)
+
+    # Set the coordinates of the spline bezier points to the passed points
+    for bezier_point, point in zip(spline.bezier_points, points):
+        bezier_point.co = point
+
+    # Calculate the distance between the kerb points
+    vector = points[1] - points[0]
+    distance = math.sqrt(sum(i**2 for i in vector))
+
+    for i in range(len(spline.bezier_points)):
+        # Use the calculated distance to obtain an offset dependent on the kerbs and add it to the point
+        new_co = points[i] + distance * reference_vectors[i]
+        # Set both bezier point handles to the new coordinate
+        crv.splines[0].bezier_points[i].handle_left = new_co
+        crv.splines[0].bezier_points[i].handle_right = new_co
+
+    # Create a new object based on the curve and link it to its collection
+    curve = bpy.data.objects.new(f"Crossroad_Curve_{curve_names[0]}_{curve_names[1]}", crv)
+    link_to_collection(curve, "Crossroad Curves")
+
+    # Add a kerb to the curve
+    kerb_mesh_template = bpy.data.objects.get("Kerb")
+    add_mesh_to_curve(kerb_mesh_template, curve, "Kerb", 0.0, 0)
+
+    # Create a line mesh from the curve (needed for crossroad plane) and link it to its collection
+    mesh = curve.to_mesh()
+    obj = bpy.data.objects.new("Line_Mesh_" + curve.name, mesh.copy())
+    obj.matrix_world = curve.matrix_world
+    link_to_collection(obj, "Line Meshes")
 
 
 def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.Vector, ray_end: mathutils.Vector):
@@ -106,12 +206,23 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.V
     return curve_road_lane.ray_cast(origin, direction)
 
 
+def get_curves(crossing_point: bpy.types.Object, curves_number: int):
+    curves = []
+    for i in range(curves_number):
+        curve_name = crossing_point[f"Curve {i+1}"]
+        if curve_name:
+            curve = bpy.data.objects[curve_name]
+            curves.append(curve)
+
+    return curves
+
+
 def get_closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
     # Get the curve end points in world space
     m = curve.matrix_world
     first_curve_point = m @ curve.data.splines[0].bezier_points[0].co
     end_curve_point = m @ curve.data.splines[0].bezier_points[-1].co
-    return get_closest_point(first_curve_point, end_curve_point, reference_point)
+    return get_closest_point([first_curve_point, end_curve_point], reference_point)
 
 
 def get_crossing_points():
@@ -153,7 +264,7 @@ def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types
     while len(locations) > 1:
         location_0 = locations[i]
         location_1 = locations[i+1]
-        nearest_location = get_closest_point(location_0, location_1, ray_begin)
+        nearest_location = get_closest_point([location_0, location_1], ray_begin)
         index_to_remove = 0 if nearest_location == location_1 else 1
 
         # Delete unnecessary information
