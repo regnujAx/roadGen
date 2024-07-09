@@ -71,7 +71,7 @@ def create_kdtree(list: list, size: int):
 
 def delete(collections: list):
     for collection_name in collections:
-        objects = get_objects_from_collection(collection_name)
+        objects = objects_from_collection(collection_name)
 
         while objects:
             bpy.data.objects.remove(objects.pop())
@@ -87,7 +87,7 @@ def find_closest_points(list: list, reference_point: mathutils.Vector, find_all:
     return kd.find_n(reference_point, n)
 
 
-def get_closest_point(points: list, reference_point: mathutils.Vector):
+def closest_point(points: list, reference_point: mathutils.Vector):
     closest_point = points[0]
 
     for i in range(len(points) - 1):
@@ -103,7 +103,7 @@ def get_closest_point(points: list, reference_point: mathutils.Vector):
     return closest_point
 
 
-def get_coplanar_faces(
+def coplanar_faces(
         object: bpy.types.Object, normal: mathutils.Vector, index: int, road_height: float = 0.1, threshold: float = 0.001):
     data = object.data
     bm = bmesh.new()
@@ -127,13 +127,13 @@ def get_coplanar_faces(
     return [data.polygons[idx] for idx in coplanar_faces_ids]
 
 
-def get_line_meshes(curve_name: str):
+def line_meshes(curve_name: str):
     left_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
     right_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
     return left_line_mesh, right_line_mesh
 
 
-def get_objects_from_collection(collection_name: str):
+def objects_from_collection(collection_name: str):
     collection = bpy.data.collections.get(collection_name)
 
     if collection:
@@ -144,7 +144,7 @@ def get_objects_from_collection(collection_name: str):
     return []
 
 
-def get_visible_curves():
+def visible_curves():
     # Get all visible (not hidden) curves
     objects = bpy.context.scene.objects
     return [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]
@@ -171,7 +171,7 @@ def remove_collection(collection_name: str):
         bpy.data.collections.remove(collection)
 
 
-# def get_geometry_center(object: bpy.types.Object):
+# def geometry_center(object: bpy.types.Object):
 #     sum_world_coord = [0, 0, 0]
 #     num_vertices = len(object.data.vertices)
 #     wm = object.matrix_world
@@ -190,7 +190,7 @@ def remove_collection(collection_name: str):
 #     if crossing_point_loc:
 #         new_loc = crossing_point_loc
 #     else:
-#         new_loc = get_geometry_center(object)
+#         new_loc = geometry_center(object)
 
 #     for vert in object.data.vertices:
 #         vert.co -= new_loc - old_loc

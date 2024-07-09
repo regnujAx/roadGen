@@ -1,9 +1,9 @@
-from .util import get_visible_curves
+from .util import visible_curves
 
 
 class CG_DataManager():
     def __init__(self):
-        self.curves = get_visible_curves()
+        self.curves = visible_curves()
 
     def createCrossroadData(self):
         return {'FINISHED'}

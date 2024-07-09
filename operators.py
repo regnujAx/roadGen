@@ -5,7 +5,7 @@ import bpy
 from .datamanager import CG_DataManager
 from .generators.roadGenerator import CG_RoadGenerator
 from .generators.crossroadGenerator import CG_CrossroadGenerator
-from .util import delete, get_visible_curves, show_message_box
+from .util import delete, visible_curves, show_message_box
 
 
 # ------------------------------------------------------------------------
@@ -68,7 +68,7 @@ class CG_CreateRoads(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        curves = get_visible_curves()
+        curves = visible_curves()
 
         road_generator = CG_RoadGenerator(curves)
         road_generator.add_roads()

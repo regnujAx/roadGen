@@ -5,23 +5,23 @@ import mathutils
 from ..util import (
     add_mesh_to_curve,
     find_closest_points,
-    get_closest_point,
-    get_coplanar_faces,
-    get_line_meshes,
-    get_objects_from_collection,
+    closest_point,
+    coplanar_faces,
+    line_meshes,
+    objects_from_collection,
     link_to_collection,
     set_origin)
 
 
 class CG_CrossroadGenerator:
     def __init__(self):
-        self.crossing_points = get_crossing_points()
+        self.crossing_points = crossing_points()
 
     def add_crossroads(self):
         for crossing_point in self.crossing_points:
             curves_number = int(crossing_point["Number of Curves"])
 
-            curves = get_curves(crossing_point, curves_number)
+            curves = crossing_curves(crossing_point, curves_number)
             add_crossroad(curves, crossing_point)
 
 
@@ -34,10 +34,10 @@ def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float 
 
     for curve in curves:
         # Get the outer bottom vertices of the road lanes of a curve by casting a ray from the crossing point towards the curve
-        bottom_vertices = get_outer_bottom_vertices(curve, crossing_point)
+        bottom_vertices = outer_bottom_vertices(curve, crossing_point)
 
         # Sort the vertices (clockwise) with respect to the reference point
-        vertex = get_closest_point([bottom_vertices[0], bottom_vertices[1]], reference_point)
+        vertex = closest_point([bottom_vertices[0], bottom_vertices[1]], reference_point)
         other_vertex = bottom_vertices[0] if vertex == bottom_vertices[1] else bottom_vertices[1]
         verts = [vertex, other_vertex]
 
@@ -125,7 +125,7 @@ def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float 
 def add_crossroad_kerb(curve_names: list, points: list):
     reference_vectors = []
     for i, curve_name in enumerate(curve_names):
-        left_line_mesh, right_line_mesh = get_line_meshes(curve_name)
+        left_line_mesh, right_line_mesh = line_meshes(curve_name)
         location_left_mesh = left_line_mesh.location
         location_right_mesh = right_line_mesh.location
 
@@ -136,7 +136,7 @@ def add_crossroad_kerb(curve_names: list, points: list):
         vertex_right_1 = right_line_mesh.data.vertices[-1].co + location_right_mesh
 
         # Determine the closest vertex to the current point
-        vertex = get_closest_point([vertex_left_0, vertex_left_1, vertex_right_0, vertex_right_1], points[i])
+        vertex = closest_point([vertex_left_0, vertex_left_1, vertex_right_0, vertex_right_1], points[i])
 
         # Determine the correct mesh and location of the closest vertex
         mesh = left_line_mesh if vertex == vertex_left_0 or vertex == vertex_left_1 else right_line_mesh
@@ -206,38 +206,39 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.V
     return curve_road_lane.ray_cast(origin, direction)
 
 
-def get_curves(crossing_point: bpy.types.Object, curves_number: int):
+def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):
     curves = []
     for i in range(curves_number):
         curve_name = crossing_point[f"Curve {i+1}"]
+
         if curve_name:
-            curve = bpy.data.objects[curve_name]
+            curve = bpy.data.objects.get(curve_name)
             curves.append(curve)
 
     return curves
 
 
-def get_closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
+def closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
     # Get the curve end points in world space
     m = curve.matrix_world
     first_curve_point = m @ curve.data.splines[0].bezier_points[0].co
     end_curve_point = m @ curve.data.splines[0].bezier_points[-1].co
-    return get_closest_point([first_curve_point, end_curve_point], reference_point)
+    return closest_point([first_curve_point, end_curve_point], reference_point)
 
 
-def get_crossing_points():
-    return get_objects_from_collection("Nodes")
+def crossing_points():
+    return objects_from_collection("Nodes")
 
 
-def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types.Object):
+def outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types.Object):
     # Take the crossing point as the begin for the ray cast
     ray_begin = crossing_point.location
 
     # Figure out the correct curve point and use it as the begin of the ray
-    ray_end = get_closest_curve_point(curve, ray_begin)
+    ray_end = closest_curve_point(curve, ray_begin)
 
     # Determine the road lane meshes corresponding to the curve
-    road_lanes = get_objects_from_collection("Road Lanes")
+    road_lanes = objects_from_collection("Road Lanes")
     # ToDo: `endswith()` and `in` are not optimal for multiple road lanes per side and are linked to specific name conventions
     # `in` presupposes that the name of the first curve is indexed (i.e. BezierCurve.000 instead of BezierCurve)
     curve_road_lanes = [road_lane for road_lane in road_lanes if curve.name in road_lane.name]
@@ -264,7 +265,7 @@ def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types
     while len(locations) > 1:
         location_0 = locations[i]
         location_1 = locations[i+1]
-        nearest_location = get_closest_point([location_0, location_1], ray_begin)
+        nearest_location = closest_point([location_0, location_1], ray_begin)
         index_to_remove = 0 if nearest_location == location_1 else 1
 
         # Delete unnecessary information
@@ -278,33 +279,38 @@ def get_outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types
     hit_object = hit_objects[0]
     normal = normals[0]
 
-    for curve_road_lane in curve_road_lanes:
-        # Use the remaining index as reference for finding the coplanar faces
-        index = indices[0]
+    # Handle each road side separately (if there are multiple road lanes on each side)
+    for side in ["Left", "Right"]:
+        side_road_lanes = [road_lane for road_lane in curve_road_lanes if side in road_lane.name]
         vertices = []
 
-        # Overwrite the index if the current road lane does not match the hit object
-        if curve_road_lane != hit_object:
-            faces_centers = [face.center for face in curve_road_lane.data.polygons]
-            closest_face = find_closest_points(faces_centers, ray_end - curve_road_lane.location, False)[0]
-            index = faces_centers.index(closest_face[0])
+        for side_road_lane in side_road_lanes:
+            # Use the remaining index as reference for finding the coplanar faces
+            index = indices[0]
 
-        faces = get_coplanar_faces(curve_road_lane, normal, index)
+            # Overwrite the index if the current road lane does not match the hit object
+            if side_road_lane != hit_object:
+                faces_centers = [face.center for face in side_road_lane.data.polygons]
+                closest_face = find_closest_points(faces_centers, ray_end - side_road_lane.location, False)[0]
+                index = faces_centers.index(closest_face[0])
 
-        for face in faces:
-            # Iterate over all edges of each coplanar face but consider only vertical edges and collect their bottom vertices
-            for (index_0, index_1) in face.edge_keys:
-                vertex_0 = curve_road_lane.data.vertices[index_0].co
-                vertex_1 = curve_road_lane.data.vertices[index_1].co
-                delta_z = abs(vertex_0.z - vertex_1.z)
+            faces = coplanar_faces(side_road_lane, normal, index)
 
-                if delta_z <= z_threshold:
-                    if vertex_0 not in vertices and vertex_0.z <= z_threshold:
-                        vertices.append(vertex_0)
-                    if vertex_1 not in vertices and vertex_1.z <= z_threshold:
-                        vertices.append(vertex_1)
+            for face in faces:
+                # Iterate over all edges of each coplanar face but consider only vertical edges
+                # and collect their bottom vertices
+                for (index_0, index_1) in face.edge_keys:
+                    vertex_0 = side_road_lane.data.vertices[index_0].co
+                    vertex_1 = side_road_lane.data.vertices[index_1].co
+                    delta_z = abs(vertex_0.z - vertex_1.z)
 
-        location = curve_road_lane.location
+                    if delta_z <= z_threshold:
+                        if vertex_0 not in vertices and vertex_0.z <= z_threshold:
+                            vertices.append(vertex_0)
+                        if vertex_1 not in vertices and vertex_1.z <= z_threshold:
+                            vertices.append(vertex_1)
+
+        location = side_road_lane.location
         # Keep only the closest vertices to the end of the ray of the bottom vertices
         closest_vertices = find_closest_points(vertices, ray_end - location)
 
