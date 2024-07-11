@@ -45,18 +45,30 @@ if dir not in sys.path:
     sys.path.append(dir)
 
 
-from . import (datamanager, operators, properties, util)
-from .generators import crossroadGenerator, roadGenerator
+from . import (operators, properties)
+from .generators import crossroad_generator, data_generator, kerb_generator, road_generator, road_net_generator
+from .utils import collection_management, curve_management, mesh_management
 
-reload(datamanager)
-reload(util)
 reload(operators)
 reload(properties)
-reload(crossroadGenerator)
-reload(roadGenerator)
+reload(crossroad_generator)
+reload(data_generator)
+reload(kerb_generator)
+reload(road_generator)
+reload(road_net_generator)
+reload(collection_management)
+reload(curve_management)
+reload(mesh_management)
 
-from .properties import *
-from .operators import *
+from .operators import (
+    CG_CreateAll,
+    CG_CreateCrossroads,
+    CG_CreateOneRoad,
+    CG_CreateRoadData,
+    CG_CreateRoads,
+    CG_CreateRoadsFromCollection,
+    CG_DeleteAll)
+from .properties import CG_RoadProperties
 
 
 # ------------------------------------------------------------------------
@@ -85,6 +97,7 @@ class CG_RoadPanel(bpy.types.Panel):
         row.prop(road_props, "collection")
         row.operator("cg.create_roads_from_collection")
 
+        layout.operator("cg.create_all")
         layout.operator("cg.create_road_data")
         layout.operator("cg.create_roads")
         layout.operator("cg.create_crossroads")
@@ -110,11 +123,12 @@ class CG_RoadPanel(bpy.types.Panel):
 
 classes = (
     CG_RoadProperties,
+    CG_CreateAll,
     CG_CreateCrossroads,
+    CG_CreateOneRoad,
     CG_CreateRoadData,
     CG_CreateRoads,
     CG_CreateRoadsFromCollection,
-    CG_CreateOneRoad,
     CG_DeleteAll,
     CG_RoadPanel,
     # CG_BuildingPanel

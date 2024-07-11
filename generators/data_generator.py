@@ -1,14 +1,14 @@
-from .util import visible_curves
+from ..utils.curve_management import visible_curves
 
 
-class CG_DataManager():
+class CG_DataGenerator():
     def __init__(self):
         self.curves = visible_curves()
 
-    def createCrossroadData(self):
+    def create_crossroad_data(self):
         return {'FINISHED'}
 
-    def createRoadData(self):
+    def create_road_data(self):
         for curve in self.curves:
             if curve.get("Lane Width") is None:
                 curve["Lane Width"] = 2.50

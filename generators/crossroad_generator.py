@@ -2,13 +2,13 @@ import bpy
 import math
 import mathutils
 
-from ..util import (
-    add_mesh_to_curve,
-    find_closest_points,
+from .kerb_generator import CG_KerbGenerator
+from ..utils.collection_management import objects_from_collection
+from ..utils.mesh_management import (
     closest_point,
     coplanar_faces,
+    find_closest_points,
     line_meshes,
-    objects_from_collection,
     link_to_collection,
     set_origin)
 
@@ -23,6 +23,11 @@ class CG_CrossroadGenerator:
 
             curves = crossing_curves(crossing_point, curves_number)
             add_crossroad(curves, crossing_point)
+
+
+# ------------------------------------------------------------------------
+#    Helper Methods
+# ------------------------------------------------------------------------
 
 
 def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float = 0.1):
@@ -182,8 +187,8 @@ def add_crossroad_kerb(curve_names: list, points: list):
     link_to_collection(curve, "Crossroad Curves")
 
     # Add a kerb to the curve
-    kerb_mesh_template = bpy.data.objects.get("Kerb")
-    add_mesh_to_curve(kerb_mesh_template, curve, "Kerb", 0.0, 0)
+    kerb_generator = CG_KerbGenerator(curve=curve)
+    kerb_generator.add_kerb_to_curve()
 
     # Create a line mesh from the curve (needed for crossroad plane) and link it to its collection
     mesh = curve.to_mesh()
@@ -206,6 +211,14 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.V
     return curve_road_lane.ray_cast(origin, direction)
 
 
+def closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
+    # Get the curve end points in world space
+    m = curve.matrix_world
+    first_curve_point = m @ curve.data.splines[0].bezier_points[0].co
+    end_curve_point = m @ curve.data.splines[0].bezier_points[-1].co
+    return closest_point([first_curve_point, end_curve_point], reference_point)
+
+
 def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):
     curves = []
     for i in range(curves_number):
@@ -216,14 +229,6 @@ def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):
             curves.append(curve)
 
     return curves
-
-
-def closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
-    # Get the curve end points in world space
-    m = curve.matrix_world
-    first_curve_point = m @ curve.data.splines[0].bezier_points[0].co
-    end_curve_point = m @ curve.data.splines[0].bezier_points[-1].co
-    return closest_point([first_curve_point, end_curve_point], reference_point)
 
 
 def crossing_points():

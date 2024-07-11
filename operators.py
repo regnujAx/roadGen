@@ -1,16 +1,32 @@
 import bpy
 
-
-# from . import config
-from .datamanager import CG_DataManager
-from .generators.roadGenerator import CG_RoadGenerator
-from .generators.crossroadGenerator import CG_CrossroadGenerator
-from .util import delete, visible_curves, show_message_box
+from .generators.data_generator import CG_DataGenerator
+from .generators.crossroad_generator import CG_CrossroadGenerator
+from .generators.kerb_generator import CG_KerbGenerator
+from .generators.road_generator import CG_RoadGenerator
+from .generators.road_net_generator import CG_RoadNetGenerator
+from .utils.collection_management import delete
+from .utils.curve_management import visible_curves
 
 
 # ------------------------------------------------------------------------
 #    Operators
 # ------------------------------------------------------------------------
+
+
+class CG_CreateAll(bpy.types.Operator):
+    """Create roads, kerbs and crossroads for all visible curves in the scene"""
+    bl_label = "Create All"
+    bl_idname = "cg.create_all"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        curves = visible_curves()
+
+        road_net_generator = CG_RoadNetGenerator(curves)
+        road_net_generator.create()
+
+        return {'FINISHED'}
 
 
 class CG_CreateCrossroads(bpy.types.Operator):
@@ -45,6 +61,8 @@ class CG_CreateOneRoad(bpy.types.Operator):
         road_generator = CG_RoadGenerator([curve])
         road_generator.add_roads()
 
+        add_kerbs(road_generator.roads)
+
         return {'FINISHED'}
 
 
@@ -55,8 +73,8 @@ class CG_CreateRoadData(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        datamanager = CG_DataManager()
-        datamanager.createRoadData()
+        datamanager = CG_DataGenerator()
+        datamanager.create_road_data()
 
         return {'FINISHED'}
 
@@ -72,6 +90,8 @@ class CG_CreateRoads(bpy.types.Operator):
 
         road_generator = CG_RoadGenerator(curves)
         road_generator.add_roads()
+
+        add_kerbs(road_generator.roads)
 
         return {'FINISHED'}
 
@@ -96,6 +116,8 @@ class CG_CreateRoadsFromCollection(bpy.types.Operator):
         road_generator = CG_RoadGenerator(curves)
         road_generator.add_roads()
 
+        add_kerbs(road_generator.roads)
+
         return {'FINISHED'}
 
 
@@ -116,3 +138,21 @@ class CG_DeleteAll(bpy.types.Operator):
         wm = context.window_manager
 
         return wm.invoke_confirm(self, event)
+
+
+# ------------------------------------------------------------------------
+#    Helper Methods
+# ------------------------------------------------------------------------
+
+
+def show_message_box(title: str = "Message Box", message: str = "", icon: str = "INFO"):
+    def draw(self, context):
+        self.layout.label(text=message)
+
+    bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+
+
+def add_kerbs(roads: list):
+    for road in roads:
+        kerb_generator = CG_KerbGenerator(road=road)
+        kerb_generator.add_kerbs_to_road()
