@@ -28,8 +28,7 @@ def add_line_following_mesh(mesh_name: str):
     line_mesh = bpy.data.objects.new(line_mesh_name, new_mesh)
 
     # Deselect all selected objects to ensure that no object is selected
-    for object in bpy.context.selected_objects:
-        object.select_set(False)
+    deselect_all()
 
     # Link the line mesh to the correct colletion
     collection_name = "Line Meshes"
@@ -60,7 +59,11 @@ def add_line_following_mesh(mesh_name: str):
     line_mesh.location = mesh.location
 
 
-def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, lane_width: float, index: int):
+def add_mesh_to_curve(
+        mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, lane_width: float, index: int,
+        offset: float = None):
+    collection_name = "Road Lanes"
+    child_collection_name = None
     mesh = mesh_template.copy()
     mesh.data = mesh_template.data.copy()
     mesh.name = name + "_" + curve.name
@@ -72,11 +75,18 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
         y = lane_width * index - lane_width / 2
         mesh.dimensions[1] = lane_width
     elif "Kerb" in name:
+        collection_name = "Kerbs"
         # Calculate an offset for the y-coordinate depending on the lane width, index and side of the kerb (right:neg, left:pos)
         sign = -1 if index < 0 else 1
-        y = lane_width * index + (sign * mesh.dimensions[1]/2)
+        y = lane_width * index + sign * mesh.dimensions[1] / 2
         # Keep its original z-location for the kerb
         z = mesh.location[2]
+    elif "Sidewalk" in name:
+        collection_name = "Sidewalks"
+        # Add for every sidewalk a new collection for separated meshes
+        child_collection_name = mesh.name
+        sign = -1 if index < 0 else 1
+        y = lane_width * index + sign * (mesh.dimensions[1] / 2 + offset)
     mesh.location += mathutils.Vector((x, y, z))
 
     # Calculate and update the x-dimension of the mesh so it fits better to its curve
@@ -87,12 +97,11 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     mesh.dimensions[0] = x_dim + threshold
 
     # Apply the correct curve for the mesh modifiers
-    mesh.modifiers['Array'].curve = curve
-    mesh.modifiers['Curve'].object = curve
+    mesh.modifiers["Array"].curve = curve
+    mesh.modifiers["Curve"].object = curve
 
     # Add the created mesh to the correct collection and apply its rotation and scale
-    collection_name = "Road Lanes" if "Road_Lane" in name else "Kerbs"
-    link_to_collection(mesh, collection_name)
+    link_to_collection(mesh, collection_name, child_collection_name)
     apply_transform(mesh, location=False, properties=False)
 
     # Set the mesh as active object and apply its modifiers
@@ -210,6 +219,11 @@ def coplanar_faces(
     return [data.polygons[idx] for idx in coplanar_faces_ids]
 
 
+def deselect_all():
+    for object in bpy.context.selected_objects:
+        object.select_set(False)
+
+
 def find_closest_points(list: list, reference_point: mathutils.Vector, find_all: bool = True):
     num_vertices = len(list)
     kd = create_kdtree(list, num_vertices)
@@ -226,5 +240,17 @@ def line_meshes(curve_name: str):
 
 def set_origin(object: bpy.types.Object):
     object.select_set(True)
-    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center='BOUNDS')
+    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
     object.select_set(False)
+
+
+def separate_array_meshes(mesh: bpy.types.Object):
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    # Separate the submeshes into independent meshes
+    bpy.ops.mesh.separate(type="LOOSE")
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+    # Deselect all selected objects to ensure that no object is selected
+    deselect_all()

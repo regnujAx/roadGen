@@ -116,11 +116,11 @@ def add_crossroad(curves: list, crossing_point: bpy.types.Object, height: float 
 
     # Edit the crossroad plane
     bpy.context.view_layer.objects.active = crossroad
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     # Extrude the crossroad plane so it is a 3D mesh
     bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": (0.0, 0.0, height)})
-    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.mode_set(mode="OBJECT")
 
     # Set the origin to the center of the mesh (Hint: This overwrites the location.)
     set_origin(crossroad)
@@ -157,12 +157,12 @@ def add_crossroad_kerb(curve_names: list, points: list):
         reference_vectors.append(vertex - reference_vertex)
 
     # Create a new curve and change its curve type to 3D and increase its resolution
-    crv = bpy.data.curves.new('crv', 'CURVE')
-    crv.dimensions = '3D'
+    crv = bpy.data.curves.new("curve", "CURVE")
+    crv.dimensions = "3D"
     crv.resolution_u = 32
 
-    # Create a new spline in that new created curve
-    spline = crv.splines.new(type='BEZIER')
+    # Create a new spline for the new created curve
+    spline = crv.splines.new(type="BEZIER")
 
     # Add one spline bezier point for each point (there is already one point by default so one additional is sufficient)
     spline.bezier_points.add(1)
@@ -192,9 +192,9 @@ def add_crossroad_kerb(curve_names: list, points: list):
 
     # Create a line mesh from the curve (needed for crossroad plane) and link it to its collection
     mesh = curve.to_mesh()
-    obj = bpy.data.objects.new("Line_Mesh_" + curve.name, mesh.copy())
-    obj.matrix_world = curve.matrix_world
-    link_to_collection(obj, "Line Meshes")
+    line_mesh = bpy.data.objects.new("Line_Mesh_" + curve.name, mesh.copy())
+    line_mesh.matrix_world = curve.matrix_world
+    link_to_collection(line_mesh, "Line Meshes")
 
 
 def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.Vector, ray_end: mathutils.Vector):

@@ -12,6 +12,7 @@ class CG_Road:
         self.road_lanes_left = []
         self.road_lanes_right = []
         self.kerbs = []
+        self.sidewalks = []
 
     def add_road_lanes(self):
         road_lane_mesh_template_inside = bpy.data.objects.get("Road_Lane_Inside")

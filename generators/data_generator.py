@@ -6,7 +6,7 @@ class CG_DataGenerator():
         self.curves = visible_curves()
 
     def create_crossroad_data(self):
-        return {'FINISHED'}
+        return {"FINISHED"}
 
     def create_road_data(self):
         for curve in self.curves:
@@ -14,7 +14,7 @@ class CG_DataGenerator():
                 curve["Lane Width"] = 2.50
                 # Edit the property
                 property_manager = curve.id_properties_ui("Lane Width")
-                property_manager.update(soft_min=1, soft_max=4, subtype='DISTANCE')
+                property_manager.update(soft_min=1, soft_max=4, subtype="DISTANCE")
             if curve.get("Left Lanes") is None:
                 curve["Left Lanes"] = 1
                 property_manager = curve.id_properties_ui("Left Lanes")
@@ -26,7 +26,7 @@ class CG_DataGenerator():
             if curve.get("Lantern Distance") is None:
                 curve["Lantern Distance"] = 10.0
                 property_manager = curve.id_properties_ui("Lantern Distance")
-                property_manager.update(soft_min=1, soft_max=5000, subtype='DISTANCE')
+                property_manager.update(soft_min=1, soft_max=5000, subtype="DISTANCE")
             if curve.get("Left Dropped Kerbs") is None:
                 curve["Left Dropped Kerbs"] = "5"
                 property_manager = curve.id_properties_ui("Left Dropped Kerbs")

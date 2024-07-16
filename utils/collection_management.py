@@ -1,7 +1,7 @@
 import bpy
 
 
-def delete(collections: list):
+def delete_collections_with_objects(collections: list):
     for collection_name in collections:
         objects = objects_from_collection(collection_name)
 
@@ -15,12 +15,22 @@ def hide_collection(collection_name: str):
     bpy.context.view_layer.layer_collection.children[collection_name].hide_viewport = True
 
 
-def link_to_collection(mesh: bpy.types.Object, collection_name: str):
+def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_collection_name: str = None):
     collection = bpy.data.collections.get(collection_name)
 
     if collection is None:
         collection = bpy.data.collections.new(collection_name)
         bpy.context.scene.collection.children.link(collection)
+
+    if child_collection_name:
+        child_collection = bpy.data.collections.get(child_collection_name)
+
+        if child_collection is None:
+            child_collection = bpy.data.collections.new(child_collection_name)
+            # Add the new child collection to its parent collection
+            collection.children.link(child_collection)
+
+        collection = child_collection
 
     collection.objects.link(mesh)
 

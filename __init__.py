@@ -49,6 +49,9 @@ from . import (operators, properties)
 from .generators import crossroad_generator, data_generator, kerb_generator, road_generator, road_net_generator
 from .utils import collection_management, curve_management, mesh_management
 
+reload(collection_management)
+reload(curve_management)
+reload(mesh_management)
 reload(operators)
 reload(properties)
 reload(crossroad_generator)
@@ -56,9 +59,6 @@ reload(data_generator)
 reload(kerb_generator)
 reload(road_generator)
 reload(road_net_generator)
-reload(collection_management)
-reload(curve_management)
-reload(mesh_management)
 
 from .operators import (
     CG_CreateAll,
