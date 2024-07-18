@@ -112,8 +112,8 @@ def add_mesh_to_curve(
     return mesh
 
 
-def add_object_to_mesh(mesh_name: str, positions: list):
-    mesh = bpy.data.objects.get(mesh_name)
+def edit_mesh_at_positions(mesh_name: str, positions: list):
+    # Get the corresponding line mesh
     line_mesh_name = "Line_Mesh_" + mesh_name
     line_mesh = bpy.data.objects.get(line_mesh_name)
 
@@ -145,17 +145,18 @@ def add_object_to_mesh(mesh_name: str, positions: list):
 
         # Edit the mesh at the reached position
         if object_position:
-            vertices_co = [vertex.co for vertex in mesh.data.vertices]
+            mesh = bpy.data.objects.get(mesh_name)
+            vertices = [vertex.co for vertex in mesh.data.vertices]
 
-            kd = create_kdtree(vertices_co, len(vertices_co))
+            kd = create_kdtree(vertices, len(vertices))
 
             # Decrease the "height" (z-coordinate) of all vertices in a certain radius that are higher than 0
             radius = 2
             for (co, index, dist) in kd.find_range(object_position, radius):
-                vertex_co = vertices_co[index]
+                vertex = vertices[index]
 
-                if vertex_co.z > 0.1:
-                    vertex_co.z -= 0.135
+                if vertex.z > 0.2:
+                    vertex.z -= 0.135
 
     bm_line.free()
 
@@ -183,10 +184,10 @@ def closest_point(points: list, reference_point: mathutils.Vector):
     return closest_point
 
 
-def create_kdtree(list: list, size: int):
+def create_kdtree(vertices: list, size: int):
     # Create a KD-Tree to perform a spatial search
     kd = mathutils.kdtree.KDTree(size)
-    for i, v in enumerate(list):
+    for i, v in enumerate(vertices):
         kd.insert(v, i)
 
     # Balance (build) the KD-Tree
@@ -252,5 +253,5 @@ def separate_array_meshes(mesh: bpy.types.Object):
     bpy.ops.mesh.separate(type="LOOSE")
     bpy.ops.object.mode_set(mode="OBJECT")
 
-    # Deselect all selected objects to ensure that no object is selected
+    # Ensure that no object is selected
     deselect_all()

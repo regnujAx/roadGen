@@ -5,7 +5,7 @@ from .generators.crossroad_generator import CG_CrossroadGenerator
 from .generators.kerb_generator import CG_KerbGenerator
 from .generators.road_generator import CG_RoadGenerator
 from .generators.road_net_generator import CG_RoadNetGenerator
-from .utils.collection_management import delete_collections_with_objects
+from .utils.collection_management import delete_collections_with_objects, hide_collection
 from .utils.curve_management import visible_curves
 
 
@@ -155,4 +155,7 @@ def show_message_box(title: str = "Message Box", message: str = "", icon: str = 
 def add_kerbs(roads: list):
     for road in roads:
         kerb_generator = CG_KerbGenerator(road=road)
-        kerb_generator.add_kerbs_to_road()
+        for side in ["Left", "Right"]:
+            kerb_generator.add_kerb(side)
+
+    hide_collection("Line Meshes")

@@ -1,5 +1,5 @@
 # Run in a command line tool (like git bash):
-# 'C:\Program Files\Blender Foundation\Blender 3.6\blender.exe' -b -noaudio
+# "C:\Program Files\Blender Foundation\Blender 3.6\blender.exe" -b -noaudio
 # --addons cityGen --python test\all_tests.py -- -v
 
 import bpy
@@ -9,7 +9,7 @@ from cityGen.generators.data_generator import CG_DataGenerator
 from cityGen.generators.road_generator import CG_RoadGenerator
 from cityGen.generators.kerb_generator import CG_KerbGenerator
 from cityGen.generators.crossroad_generator import CG_CrossroadGenerator
-from cityGen.utils.collection_management import delete
+from cityGen.utils.collection_management import delete_collections_with_objects
 from cityGen.utils.curve_management import visible_curves
 
 
@@ -21,7 +21,8 @@ from cityGen.utils.curve_management import visible_curves
 def add_kerbs(roads: list):
     for road in roads:
         kerb_generator = CG_KerbGenerator(road=road)
-        kerb_generator.add_kerbs_to_road()
+        for side in ["Left", "Right"]:
+            kerb_generator.add_kerb(side)
 
 
 def cleanup():
@@ -186,7 +187,7 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
 
         collections = ["Kerbs", "Line Meshes", "Road Lanes"]
 
-        delete(collections)
+        delete_collections_with_objects(collections)
 
         self.assertIsNone(bpy.data.collections.get("Road Lanes"))
         self.assertIsNone(bpy.data.collections.get("Kerbs"))
@@ -260,7 +261,7 @@ class TestCrossroadCreation(unittest.TestCase):
             self.assertIsNotNone(bpy.data.objects.get(f"Crossroad_{node.name}"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     sys.argv = [__file__] + (sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
