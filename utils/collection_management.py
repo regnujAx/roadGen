@@ -1,6 +1,10 @@
 import bpy
 
 
+def crossing_points():
+    return objects_from_collection("Nodes")
+
+
 def delete_collections_with_objects(collections: list):
     for collection_name in collections:
         objects = objects_from_collection(collection_name)
@@ -9,6 +13,16 @@ def delete_collections_with_objects(collections: list):
             bpy.data.objects.remove(objects.pop())
 
         remove_collection(collection_name)
+
+
+def first_and_last_objects_from_collections(collection_names: list, number_of_objects: int):
+    objects = []
+    for collection_name in collection_names:
+        collection = bpy.data.collections[collection_name]
+        objects.extend(collection.objects[:number_of_objects])
+        objects.extend(collection.objects[-number_of_objects:])
+
+    return objects
 
 
 def hide_collection(collection_name: str):

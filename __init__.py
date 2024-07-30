@@ -46,7 +46,7 @@ if dir not in sys.path:
 
 
 from . import (operators, properties)
-from .generators import crossroad_generator, data_generator, kerb_generator, road_generator, road_net_generator
+from .generators import crossroad_generator, data_generator, geometry_generator, kerb_generator, road_generator, road_net_generator
 from .utils import collection_management, curve_management, mesh_management
 
 reload(collection_management)
@@ -56,6 +56,7 @@ reload(operators)
 reload(properties)
 reload(crossroad_generator)
 reload(data_generator)
+reload(geometry_generator)
 reload(kerb_generator)
 reload(road_generator)
 reload(road_net_generator)

@@ -105,60 +105,16 @@ def add_mesh_to_curve(
     apply_transform(mesh, location=False, properties=False)
 
     # Set the mesh as active object and apply its modifiers
-    bpy.context.view_layer.objects.active = mesh
-    for modifier in mesh.modifiers:
-        bpy.ops.object.modifier_apply(modifier=modifier.name)
+    apply_modifiers(mesh)
 
     return mesh
 
 
-def edit_mesh_at_positions(mesh_name: str, positions: list):
-    # Get the corresponding line mesh
-    line_mesh_name = "Line_Mesh_" + mesh_name
-    line_mesh = bpy.data.objects.get(line_mesh_name)
+def apply_modifiers(mesh: bpy.types.Object):
+    bpy.context.view_layer.objects.active = mesh
 
-    # Create a BMesh from the line mesh for edge length calculation
-    mesh_eval_data = line_mesh.data
-    bm_line = bmesh.new()
-    bm_line.from_mesh(mesh_eval_data)
-
-    object_position = None
-    for pos in positions:
-        p = pos
-        total_length = 0
-
-        # Iterate over all line mesh edges to find its position, which corresponds to the given position
-        for edge in bm_line.edges:
-            edge_length = edge.calc_length()
-            total_length += edge_length
-
-            # Calculate the position on the line mesh when a position is reached
-            if total_length > pos:
-                v0 = edge.verts[0]
-                v1 = edge.verts[1]
-                vec = mathutils.Vector(v1.co) - mathutils.Vector(v0.co)
-                unit_vec = vec / edge_length
-                object_position = v0.co + unit_vec * p
-                break
-
-            p -= edge_length
-
-        # Edit the mesh at the reached position
-        if object_position:
-            mesh = bpy.data.objects.get(mesh_name)
-            vertices = [vertex.co for vertex in mesh.data.vertices]
-
-            kd = create_kdtree(vertices, len(vertices))
-
-            # Decrease the "height" (z-coordinate) of all vertices in a certain radius that are higher than 0
-            radius = 2
-            for (co, index, dist) in kd.find_range(object_position, radius):
-                vertex = vertices[index]
-
-                if vertex.z > 0.2:
-                    vertex.z -= 0.135
-
-    bm_line.free()
+    for modifier in mesh.modifiers:
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
 
 
 def apply_transform(
@@ -225,6 +181,55 @@ def deselect_all():
         object.select_set(False)
 
 
+def edit_mesh_at_positions(mesh_name: str, positions: list):
+    # Get the corresponding line mesh
+    line_mesh_name = "Line_Mesh_" + mesh_name
+    line_mesh = bpy.data.objects.get(line_mesh_name)
+
+    # Create a BMesh from the line mesh for edge length calculation
+    mesh_eval_data = line_mesh.data
+    bm_line = bmesh.new()
+    bm_line.from_mesh(mesh_eval_data)
+
+    object_position = None
+    for pos in positions:
+        p = pos
+        total_length = 0
+
+        # Iterate over all line mesh edges to find its position, which corresponds to the given position
+        for edge in bm_line.edges:
+            edge_length = edge.calc_length()
+            total_length += edge_length
+
+            # Calculate the position on the line mesh when a position is reached
+            if total_length > pos:
+                v0 = edge.verts[0]
+                v1 = edge.verts[1]
+                vec = mathutils.Vector(v1.co) - mathutils.Vector(v0.co)
+                unit_vec = vec / edge_length
+                object_position = v0.co + unit_vec * p
+                break
+
+            p -= edge_length
+
+        # Edit the mesh at the reached position
+        if object_position:
+            mesh = bpy.data.objects.get(mesh_name)
+            vertices = [vertex.co for vertex in mesh.data.vertices]
+
+            kd = create_kdtree(vertices, len(vertices))
+
+            # Decrease the "height" (z-coordinate) of all vertices in a certain radius that are higher than 0
+            radius = 2
+            for (co, index, dist) in kd.find_range(object_position, radius):
+                vertex = vertices[index]
+
+                if vertex.z > 0.2:
+                    vertex.z -= 0.135
+
+    bm_line.free()
+
+
 def find_closest_points(list: list, reference_point: mathutils.Vector, find_all: bool = True):
     num_vertices = len(list)
     kd = create_kdtree(list, num_vertices)
@@ -233,25 +238,67 @@ def find_closest_points(list: list, reference_point: mathutils.Vector, find_all:
     return kd.find_n(reference_point, n)
 
 
+def intersecting_meshes(meshes: list):
+    intersecting_meshes = {}
+
+    # For each mesh, check whether it intersects with every other mesh
+    for mesh in meshes:
+        # Create a BMesh object from the mesh and transform it into the correct space
+        bm1 = bmesh.new()
+        bm1.from_mesh(mesh.data)
+        bm1.transform(mesh.matrix_world)
+
+        # Create a BVH tree for the BMesh
+        mesh_BVHtree = mathutils.bvhtree.BVHTree.FromBMesh(bm1)
+
+        for other_mesh in meshes:
+            # Skip each other mesh if it belongs to a crossroad and is the same mesh as the current mesh
+            # or if it does not belongs to a crossroad and is in the same collection like the current mesh
+            if "Crossroad" in mesh.users_collection[0].name:
+                if mesh == other_mesh:
+                    continue
+            else:
+                if mesh.users_collection == other_mesh.users_collection:
+                    continue
+
+            # Create a BMesh and a BVH tree for the other mesh
+            bm2 = bmesh.new()
+            bm2.from_mesh(other_mesh.data)
+            bm2.transform(other_mesh.matrix_world)
+            other_mesh_BVHtree = mathutils.bvhtree.BVHTree.FromBMesh(bm2)
+
+            # Get the intersecting parts (indices) between the BVH trees
+            inter = mesh_BVHtree.overlap(other_mesh_BVHtree)
+
+            # Only add the first intersected mesh only if it is not in the list
+            if inter:
+                if mesh not in intersecting_meshes:
+                    intersecting_meshes[mesh] = []
+                if other_mesh not in intersecting_meshes[mesh]:
+                    intersecting_meshes[mesh].append(other_mesh)
+
+    return intersecting_meshes
+
+
 def line_meshes(curve_name: str):
     left_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
     right_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
     return left_line_mesh, right_line_mesh
 
 
-def set_origin(object: bpy.types.Object):
+def set_origin(object: bpy.types.Object, center: str = 'MEDIAN'):
     object.select_set(True)
-    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center=center)
     object.select_set(False)
 
 
 def separate_array_meshes(mesh: bpy.types.Object):
     bpy.context.view_layer.objects.active = mesh
-    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.object.mode_set(mode='EDIT')
 
     # Separate the submeshes into independent meshes
-    bpy.ops.mesh.separate(type="LOOSE")
-    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.ops.mesh.separate(type='LOOSE')
+    bpy.ops.object.mode_set(mode='OBJECT')
 
     # Ensure that no object is selected
     deselect_all()

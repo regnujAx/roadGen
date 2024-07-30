@@ -3,7 +3,7 @@ from .data_generator import CG_DataGenerator
 from .kerb_generator import CG_KerbGenerator
 from .road_generator import CG_RoadGenerator
 from .sidewalk_generator import CG_SidewalkGenerator
-from ..utils.collection_management import hide_collection
+from ..utils.collection_management import crossing_points, hide_collection
 
 
 class CG_RoadNetGenerator:
@@ -14,18 +14,24 @@ class CG_RoadNetGenerator:
         datamanager = CG_DataGenerator()
         datamanager.create_road_data()
 
-        road_generator = CG_RoadGenerator(self.curves)
-        road_generator.add_roads()
+        road_generator = CG_RoadGenerator()
+        for curve in self.curves:
+            road_generator.add_geometry(curve)
+
+        kerb_generator = CG_KerbGenerator()
+        sidewalk_generator = CG_SidewalkGenerator()
 
         for road in road_generator.roads:
-            kerb_generator = CG_KerbGenerator(road=road)
-            sidewalk_generator = CG_SidewalkGenerator(road=road)
-
             for side in ["Left", "Right"]:
-                kerb_generator.add_kerb(side)
-                sidewalk_generator.add_sidewalk(side)
+                kerb_generator.add_geometry(road=road, side=side)
+                sidewalk_generator.add_geometry(road=road, side=side)
+
+        crossroad_generator = CG_CrossroadGenerator(kerb_generator, sidewalk_generator)
+
+        for crossing_point in crossing_points():
+            crossroad_generator.add_geometry(crossing_point)
+
+        sidewalk_generator.correct_sidewalks()
 
         hide_collection("Line Meshes")
-
-        crossroad_generator = CG_CrossroadGenerator()
-        crossroad_generator.add_crossroads()
+        hide_collection("Crossroad Curves")

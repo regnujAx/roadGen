@@ -1,42 +1,101 @@
 import bpy
 import math
+import mathutils
 
+from .geometry_generator import CG_GeometryGenerator
 from ..road import CG_Road
-from ..utils.collection_management import objects_from_collection
-from ..utils.mesh_management import add_mesh_to_curve, create_kdtree, separate_array_meshes
+from ..utils.collection_management import first_and_last_objects_from_collections, link_to_collection, objects_from_collection
+from ..utils.mesh_management import (
+    add_mesh_to_curve,
+    apply_modifiers,
+    create_kdtree,
+    intersecting_meshes,
+    separate_array_meshes,
+    set_origin)
 
 
-class CG_SidewalkGenerator:
-    def __init__(self, curve: bpy.types.Object = None, road: CG_Road = None, sidewalk_mesh_template: bpy.types.Object = None):
-        self.curve = curve
-        self.road = road
+class CG_SidewalkGenerator(CG_GeometryGenerator):
+    def __init__(self, sidewalk_mesh_template: bpy.types.Object = None):
+        self.sidewalks = {}
         self.sidewalk_mesh_template = sidewalk_mesh_template if sidewalk_mesh_template else bpy.data.objects.get("Sidewalk")
 
         if not self.sidewalk_mesh_template:
             print("Check whether the object Sidewalk is present, it is missing.")
 
-    def add_sidewalk(self, side: str = None):
+    def add_geometry(self, curve: bpy.types.Object = None, road: CG_Road = None, side: str = None):
         offset = bpy.data.objects.get("Kerb").dimensions[1]
 
-        if self.curve:
-            kerb_mesh_name = "Kerb_" + self.curve.name
+        if curve:
+            kerb_mesh_name = "Kerb_" + curve.name
 
-            mesh = add_mesh_to_curve(self.sidewalk_mesh_template, self.curve, "Sidewalk", 0.0, 0, offset)
-        elif self.road:
-            kerb_mesh_name = "Kerb_" + side + "_" + self.road.curve.name
+            mesh = add_mesh_to_curve(self.sidewalk_mesh_template, curve, "Sidewalk", 0.0, 0, offset)
+        elif road:
+            curve = road.curve
+            kerb_mesh_name = "Kerb_" + side + "_" + road.curve.name
 
-            index = self.road.left_lanes if side == "Left" else -self.road.right_lanes
+            index = road.left_lanes if side == "Left" else -road.right_lanes
             mesh = add_mesh_to_curve(
-                self.sidewalk_mesh_template, self.road.curve, f"Sidewalk_{side}", self.road.lane_width, index, offset)
+                self.sidewalk_mesh_template, road.curve, f"Sidewalk_{side}", road.lane_width, index, offset)
+
+        if curve.name not in self.sidewalks:
+            self.sidewalks[curve.name] = []
+        self.sidewalks[curve.name].append(mesh.name)
 
         drop_sidewalk(mesh, kerb_mesh_name)
 
         separate_array_meshes(mesh)
 
         # Add the sidewalk meshes to the Road
-        if self.road:
+        if road:
             meshes = objects_from_collection(mesh.name)
-            self.road.sidewalks[side] = meshes
+            road.sidewalks[side] = meshes
+
+    def correct_sidewalks(self):
+        collections = [collection for collections in list(self.sidewalks.values()) for collection in collections]
+
+        number_of_meshes = 5
+        meshes = first_and_last_objects_from_collections(collections, number_of_meshes)
+        mesh_intersections = intersecting_meshes(meshes)
+
+        edit_meshes = []
+        for mesh in mesh_intersections.keys():
+            edit_meshes.append(mesh)
+            intersections = mesh_intersections[mesh]
+            collection_name = mesh.users_collection[0].name
+
+            for intersected_mesh in intersections:
+                if intersected_mesh not in edit_meshes:
+                    # Create a copy of the current mesh
+                    mesh_copy = mesh.copy()
+                    mesh_copy.data = mesh.data.copy()
+
+                    # Add a boolean intersect modifier to the mesh copy with the current intersected mesh as reference object
+                    # to get the intersecting part(s) of the two meshes
+                    intersect_modifier = mesh_copy.modifiers.new("Bool", 'BOOLEAN')
+                    intersect_modifier.operation = 'INTERSECT'
+                    intersect_modifier.object = intersected_mesh
+
+                    # Link the mesh copy to its collection, apply its modifiers and update the origin
+                    link_to_collection(mesh_copy, collection_name)
+                    apply_modifiers(mesh_copy)
+                    set_origin(mesh_copy)
+                    # Scale the mesh copy a little bit up to get better results for the next step
+                    mesh_copy.scale = mathutils.Vector((1.001, 1.001, 1.001))
+
+                    # Add a boolean difference modifier to the original mesh with the mesh copy as reference object
+                    # to remove the intersecting part(s), i.e. the mesh copy, from the original mesh
+                    diff_modifier = mesh.modifiers.new("Bool", 'BOOLEAN')
+                    diff_modifier.operation = 'DIFFERENCE'
+                    diff_modifier.object = mesh_copy
+                    apply_modifiers(mesh)
+
+                    # Delete the mesh copy
+                    bpy.data.objects.remove(mesh_copy)
+
+
+# ------------------------------------------------------------------------
+#    Helper Methods
+# ------------------------------------------------------------------------
 
 
 def drop_sidewalk(mesh: bpy.types.Object, kerb_mesh_name: str, drop_depth: float = 0.115):
