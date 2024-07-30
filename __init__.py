@@ -62,11 +62,6 @@ reload(road_net_generator)
 
 from .operators import (
     CG_CreateAll,
-    CG_CreateCrossroads,
-    CG_CreateOneRoad,
-    CG_CreateRoadData,
-    CG_CreateRoads,
-    CG_CreateRoadsFromCollection,
     CG_DeleteAll)
 from .properties import CG_RoadProperties
 
@@ -87,20 +82,7 @@ class CG_RoadPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        road_props = context.scene.road_props
-
-        row = layout.row()
-        row.prop(road_props, "curve")
-        row.operator("cg.create_one_road")
-
-        row = layout.row()
-        row.prop(road_props, "collection")
-        row.operator("cg.create_roads_from_collection")
-
         layout.operator("cg.create_all")
-        layout.operator("cg.create_road_data")
-        layout.operator("cg.create_roads")
-        layout.operator("cg.create_crossroads")
         layout.operator("cg.delete_all")
 
 
@@ -124,11 +106,6 @@ class CG_RoadPanel(bpy.types.Panel):
 classes = (
     CG_RoadProperties,
     CG_CreateAll,
-    CG_CreateCrossroads,
-    CG_CreateOneRoad,
-    CG_CreateRoadData,
-    CG_CreateRoads,
-    CG_CreateRoadsFromCollection,
     CG_DeleteAll,
     CG_RoadPanel,
     # CG_BuildingPanel
