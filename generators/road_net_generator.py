@@ -31,7 +31,7 @@ class CG_RoadNetGenerator:
         for crossing_point in crossing_points():
             crossroad_generator.add_geometry(crossing_point)
 
-        sidewalk_generator.correct_sidewalks()
+        # sidewalk_generator.correct_sidewalks()
 
         hide_collection("Line Meshes")
         hide_collection("Crossroad Curves")

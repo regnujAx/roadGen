@@ -10,7 +10,6 @@ from ..utils.mesh_management import (
     closest_point,
     coplanar_faces,
     find_closest_points,
-    line_meshes,
     link_to_collection,
     set_origin)
 
@@ -91,7 +90,7 @@ def add_crossroad(
 
         if curve_0 != curve_1:
             # Add a kerb between two different curves
-            add_crossroad_kerb([curve_0, curve_1], [vertex_0, vertex_1], kerb_generator)
+            add_crossroad_kerb([curve_0, curve_1], [vertex_0, vertex_1], crossing_point.location, kerb_generator)
 
             # Add a sidewalk between two different curves
             crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_0}_{curve_1}")
@@ -140,34 +139,25 @@ def add_crossroad(
     return crossroad
 
 
-def add_crossroad_kerb(curve_names: list, points: list, kerb_generator: CG_KerbGenerator):
-    reference_vectors = []
-    for i, curve_name in enumerate(curve_names):
-        left_line_mesh, right_line_mesh = line_meshes(curve_name)
-        location_left_mesh = left_line_mesh.location
-        location_right_mesh = right_line_mesh.location
+def add_crossroad_kerb(curve_names: list, points: list, crossing_point: mathutils.Vector, kerb_generator: CG_KerbGenerator):
+    direction_unit_vectors = []
+    for curve_name in curve_names:
+        road_curve = bpy.data.objects.get(curve_name)
+        curve_point = closest_curve_point(road_curve, crossing_point)
 
-        # Get the first and last vertices of the line meshes (in global space)
-        vertex_left_0 = left_line_mesh.data.vertices[0].co + location_left_mesh
-        vertex_left_1 = left_line_mesh.data.vertices[-1].co + location_left_mesh
-        vertex_right_0 = right_line_mesh.data.vertices[0].co + location_right_mesh
-        vertex_right_1 = right_line_mesh.data.vertices[-1].co + location_right_mesh
+        # Find the closest handle of the curve point with respect to the crossing point
+        left_handle = curve_point.handle_left + road_curve.location
+        right_handle = curve_point.handle_right + road_curve.location
+        closest_handle = closest_point([left_handle, right_handle], crossing_point)
 
-        # Determine the closest vertex to the current point
-        vertex = closest_point([vertex_left_0, vertex_left_1, vertex_right_0, vertex_right_1], points[i])
+        # Calculate the direction of the curve point and its handle as unit vector
+        # for later calculation of the start/end point of the crossroad curve
+        direction = closest_handle - (curve_point.co + road_curve.location)
+        length = math.sqrt(sum(i**2 for i in direction))
+        unit_vec = direction / length
 
-        # Determine the correct mesh and location of the closest vertex
-        mesh = left_line_mesh if vertex == vertex_left_0 or vertex == vertex_left_1 else right_line_mesh
-        location = location_left_mesh if vertex == vertex_left_0 or vertex == vertex_left_1 else location_right_mesh
-
-        # Determine the correct index for the reference (neighbor) vertex
-        index = 1 if vertex == vertex_left_0 or vertex == vertex_right_0 else -2
-
-        # Calculate a reference vector between the closest vertex and its neighboring vertex
-        reference_vertex = mesh.data.vertices[index].co + location
-        reference_vertex.z = 0.0
-        vertex.z = 0.0
-        reference_vectors.append(vertex - reference_vertex)
+        # Append the unit vector to the list
+        direction_unit_vectors.append(unit_vec)
 
     # Create a new curve and change its curve type to 3D and increase its resolution
     crv = bpy.data.curves.new("curve", 'CURVE')
@@ -189,8 +179,9 @@ def add_crossroad_kerb(curve_names: list, points: list, kerb_generator: CG_KerbG
     distance = math.sqrt(sum(i**2 for i in vector))
 
     for i in range(len(spline.bezier_points)):
-        # Use the calculated distance to obtain an offset dependent on the kerbs and add it to the point
-        new_co = points[i] + distance * reference_vectors[i]
+        # Use the calculated distance to obtain an offset dependent on the kerbs in direction of its road curve
+        # and add it to the point
+        new_co = points[i] + distance / 2 * direction_unit_vectors[i]
         # Set both bezier point handles to the new coordinate
         crv.splines[0].bezier_points[i].handle_left = new_co
         crv.splines[0].bezier_points[i].handle_right = new_co
@@ -226,9 +217,14 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.V
 def closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
     # Get the curve end points in world space
     m = curve.matrix_world
-    first_curve_point = m @ curve.data.splines[0].bezier_points[0].co
-    end_curve_point = m @ curve.data.splines[0].bezier_points[-1].co
-    return closest_point([first_curve_point, end_curve_point], reference_point)
+    first_curve_point = curve.data.splines[0].bezier_points[0]
+    last_curve_point = curve.data.splines[0].bezier_points[-1]
+    first_curve_point_co = m @ first_curve_point.co
+    last_curve_point_co = m @ last_curve_point.co
+
+    point = closest_point([first_curve_point_co, last_curve_point_co], reference_point)
+
+    return first_curve_point if point == first_curve_point_co else last_curve_point
 
 
 def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):
@@ -248,7 +244,8 @@ def outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types.Obj
     ray_begin = crossing_point.location
 
     # Figure out the correct curve point and use it as the begin of the ray
-    ray_end = closest_curve_point(curve, ray_begin)
+    curve_point = closest_curve_point(curve, ray_begin)
+    ray_end = curve.matrix_world @ curve_point.co
 
     # Determine the road lane meshes corresponding to the curve
     road_lanes = objects_from_collection("Road Lanes")

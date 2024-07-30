@@ -50,6 +50,7 @@ class CG_SidewalkGenerator(CG_GeometryGenerator):
             meshes = objects_from_collection(mesh.name)
             road.sidewalks[side] = meshes
 
+    # ToDo: Check if it is still required
     def correct_sidewalks(self):
         collections = [collection for collections in list(self.sidewalks.values()) for collection in collections]
 
