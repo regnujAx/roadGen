@@ -60,6 +60,15 @@ def add_crossroad(
         # Update the reference point
         reference_point = other_vertex
 
+    # Check whether the first two vertices are in the correct order; if not, swap them
+    vertex = closest_point([vertices_to_remove[0], vertices_to_remove[1]], vertices_to_remove[2])
+    if vertex != vertices_to_remove[1]:
+        v = vertices_to_remove[1]
+        vertices_to_remove[1] = vertices_to_remove[0]
+        vertices_to_remove[0] = v
+        # Also update the dictionary
+        road_vertices[0] = [vertices_to_remove[0], vertices_to_remove[1]]
+
     vertices = []
     first_vertex = None
     number_of_vertices = len(vertices_to_remove)
@@ -190,14 +199,14 @@ def add_crossroad_kerb(curve_names: list, points: list, crossing_point: mathutil
     curve = bpy.data.objects.new(f"Crossroad_Curve_{curve_names[0]}_{curve_names[1]}", crv)
     link_to_collection(curve, "Crossroad Curves")
 
-    # Add a kerb to the curve
-    kerb_generator.add_geometry(curve=curve)
-
     # Create a line mesh from the curve (needed for crossroad plane) and link it to its collection
     mesh = curve.to_mesh()
     line_mesh = bpy.data.objects.new("Line_Mesh_" + curve.name, mesh.copy())
     line_mesh.matrix_world = curve.matrix_world
     link_to_collection(line_mesh, "Line Meshes")
+
+    # Add a kerb to the curve
+    kerb_generator.add_geometry(curve=curve)
 
 
 def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.Vector, ray_end: mathutils.Vector):
@@ -242,6 +251,8 @@ def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):
 def outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types.Object):
     # Take the crossing point as the begin for the ray cast
     ray_begin = crossing_point.location
+    # Set the height a little bit higher to guarantee a hit
+    ray_begin.z = 0.05
 
     # Figure out the correct curve point and use it as the begin of the ray
     curve_point = closest_curve_point(curve, ray_begin)
