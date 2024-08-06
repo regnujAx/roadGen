@@ -10,8 +10,8 @@ class CG_RoadGenerator(CG_GeometryGenerator):
         self.roads = []
 
     def add_geometry(self, curve: bpy.types.Object):
-        if curve.dimensions == "2D":
-            curve.dimensions = "3D"
+        if curve.data.dimensions == "2D":
+            curve.data.dimensions = "3D"
 
         # Increase (or decrease) the resolution of the curve
         curve.data.resolution_u = 32
