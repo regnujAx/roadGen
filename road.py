@@ -1,7 +1,7 @@
 import bpy
 
 
-class CG_Road:
+class RG_Road:
     def __init__(self, curve: bpy.types.Object):
         self.curve = curve
         self.lane_width = self.curve["Lane Width"]

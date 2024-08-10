@@ -2,9 +2,9 @@ import bpy
 import math
 import mathutils
 
-from .geometry_generator import CG_GeometryGenerator
-from .kerb_generator import CG_KerbGenerator
-from .sidewalk_generator import CG_SidewalkGenerator
+from .geometry_generator import RG_GeometryGenerator
+from .kerb_generator import RG_KerbGenerator
+from .sidewalk_generator import RG_SidewalkGenerator
 from ..utils.collection_management import objects_from_collection
 from ..utils.mesh_management import (
     closest_point,
@@ -14,8 +14,8 @@ from ..utils.mesh_management import (
     set_origin)
 
 
-class CG_CrossroadGenerator(CG_GeometryGenerator):
-    def __init__(self, kerb_generator: CG_KerbGenerator, sidewalk_generator: CG_SidewalkGenerator):
+class RG_CrossroadGenerator(RG_GeometryGenerator):
+    def __init__(self, kerb_generator: RG_KerbGenerator, sidewalk_generator: RG_SidewalkGenerator):
         self.sidewalk_generator = sidewalk_generator
         self.kerb_generator = kerb_generator
         self.crossroads = []
@@ -35,7 +35,7 @@ class CG_CrossroadGenerator(CG_GeometryGenerator):
 
 def add_crossroad(
         curves: list, crossing_point: bpy.types.Object,
-        kerb_generator: CG_KerbGenerator, sidewalk_generator: CG_SidewalkGenerator, height: float = 0.1):
+        kerb_generator: RG_KerbGenerator, sidewalk_generator: RG_SidewalkGenerator, height: float = 0.1):
     road_vertices = {}
     vertices_to_remove = []
 
@@ -148,7 +148,7 @@ def add_crossroad(
     return crossroad
 
 
-def add_crossroad_kerb(curve_names: list, points: list, crossing_point: mathutils.Vector, kerb_generator: CG_KerbGenerator):
+def add_crossroad_kerb(curve_names: list, points: list, crossing_point: mathutils.Vector, kerb_generator: RG_KerbGenerator):
     direction_unit_vectors = []
     for curve_name in curve_names:
         road_curve = bpy.data.objects.get(curve_name)

@@ -1,16 +1,16 @@
 # Run in a command line tool (like git bash):
 # "C:\Program Files\Blender Foundation\Blender 3.6\blender.exe" -b -noaudio
-# --addons cityGen --python test\all_tests.py -- -v
+# --addons roadGen --python test\all_tests.py -- -v
 
 import bpy
 import unittest
 
-from cityGen.generators.data_generator import CG_DataGenerator
-from cityGen.generators.road_generator import CG_RoadGenerator
-from cityGen.generators.kerb_generator import CG_KerbGenerator
-from cityGen.generators.crossroad_generator import CG_CrossroadGenerator
-from cityGen.utils.collection_management import delete_collections_with_objects
-from cityGen.utils.curve_management import visible_curves
+from roadGen.generators.data_generator import RG_DataGenerator
+from roadGen.generators.road_generator import RG_RoadGenerator
+from roadGen.generators.kerb_generator import RG_KerbGenerator
+from roadGen.generators.crossroad_generator import RG_CrossroadGenerator
+from roadGen.utils.collection_management import delete_collections_with_objects
+from roadGen.utils.curve_management import visible_curves
 
 
 # ------------------------------------------------------------------------
@@ -20,7 +20,7 @@ from cityGen.utils.curve_management import visible_curves
 
 def add_kerbs(roads: list):
     for road in roads:
-        kerb_generator = CG_KerbGenerator(road=road)
+        kerb_generator = RG_KerbGenerator(road=road)
         for side in ["Left", "Right"]:
             kerb_generator.add_kerb(side)
 
@@ -55,7 +55,7 @@ class TestRoadDataCreation(unittest.TestCase):
 
         self.curve1 = bpy.data.objects.get("BezierCurve")
         self.curve2 = bpy.data.objects.get("BezierCurve.001")
-        self.datamanager = CG_DataGenerator()
+        self.datamanager = RG_DataGenerator()
 
         bpy.ops.object.select_all(action="DESELECT")
 
@@ -103,7 +103,7 @@ class TestRoadDataCreation(unittest.TestCase):
         self.assertIsNone(self.curve1.get("Left Dropped Kerbs"))
         self.assertIsNone(self.curve1.get("Right Dropped Kerbs"))
 
-        bpy.ops.cg.create_road_data()
+        bpy.ops.rg.create_road_data()
 
         self.assertEqual(self.curve1["Lane Width"], 2.5)
         self.assertEqual(self.curve1["Left Lanes"], 1)
@@ -113,13 +113,13 @@ class TestRoadDataCreation(unittest.TestCase):
         self.assertEqual(self.curve1["Right Dropped Kerbs"], "15,30")
 
     def test_roadDataCreationOperatorWithInitialData(self):
-        bpy.ops.cg.create_road_data()
+        bpy.ops.rg.create_road_data()
 
         self.curve2["Left Lanes"] = 2
         self.curve2["Right Lanes"] = 2
         self.curve2["Lantern Distance"] = 50.0
 
-        bpy.ops.cg.create_road_data()
+        bpy.ops.rg.create_road_data()
 
         self.assertEqual(self.curve2["Lane Width"], 2.5)
         self.assertEqual(self.curve2["Left Lanes"], 2)
@@ -139,10 +139,10 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
         self.road_properties = bpy.context.scene.road_props
 
         cleanup()
-        bpy.ops.cg.create_road_data()
+        bpy.ops.rg.create_road_data()
 
     def test_assignAndCreateOneRoad(self):
-        road_generator_one_curve = CG_RoadGenerator([self.curve])
+        road_generator_one_curve = RG_RoadGenerator([self.curve])
         road_generator_one_curve.add_roads()
 
         add_kerbs(road_generator_one_curve.roads)
@@ -157,7 +157,7 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
     def test_assignAndCreateOneCollection(self):
         curves = [obj for obj in self.collection.objects if obj.type == "CURVE" and obj.visible_get()]
 
-        road_generator_one_collection = CG_RoadGenerator(curves)
+        road_generator_one_collection = RG_RoadGenerator(curves)
         road_generator_one_collection.add_roads()
 
         add_kerbs(road_generator_one_collection.roads)
@@ -166,7 +166,7 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_RoadLine"))
 
     def test_CreateAllRoads(self):
-        road_generator_all_curves = CG_RoadGenerator(self.curves)
+        road_generator_all_curves = RG_RoadGenerator(self.curves)
         road_generator_all_curves.add_roads()
 
         add_kerbs(road_generator_all_curves.roads)
@@ -176,7 +176,7 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_RoadLine"))
 
     def test_deleteAll(self):
-        road_generator_all_curves = CG_RoadGenerator(self.curves)
+        road_generator_all_curves = RG_RoadGenerator(self.curves)
         road_generator_all_curves.add_roads()
 
         add_kerbs(road_generator_all_curves.roads)
@@ -196,7 +196,7 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
     def test_assignAndCreateOneRoadOperator(self):
         self.road_properties.curve = self.curve
 
-        bpy.ops.cg.create_one_road()
+        bpy.ops.rg.create_one_road()
 
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_BezierCurve"))
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Right_BezierCurve"))
@@ -208,26 +208,26 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
     def test_assignAndCreateOneCollectionOperator(self):
         self.road_properties.collection = self.collection
 
-        bpy.ops.cg.create_roads_from_collection()
+        bpy.ops.rg.create_roads_from_collection()
 
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_BezierCurve_001"))
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_RoadLine"))
 
     def test_CreateAllRoadsOperator(self):
-        bpy.ops.cg.create_roads()
+        bpy.ops.rg.create_roads()
 
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_BezierCurve"))
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_BezierCurve_001"))
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_RoadLine"))
 
     def test_deleteAllOperator(self):
-        bpy.ops.cg.create_roads()
+        bpy.ops.rg.create_roads()
 
         self.assertIsNotNone(bpy.data.collections.get("Road Lanes"))
         self.assertIsNotNone(bpy.data.collections.get("Kerbs"))
         self.assertIsNotNone(bpy.data.collections.get("Line Meshes"))
 
-        bpy.ops.cg.delete_all()
+        bpy.ops.rg.delete_all()
 
         self.assertIsNone(bpy.data.collections.get("Road Lanes"))
         self.assertIsNone(bpy.data.collections.get("Kerbs"))
@@ -242,11 +242,11 @@ class TestCrossroadCreation(unittest.TestCase):
         self.nodesCollection = bpy.data.collections.get("Nodes")
 
         cleanup()
-        bpy.ops.cg.create_road_data()
-        bpy.ops.cg.create_roads()
+        bpy.ops.rg.create_road_data()
+        bpy.ops.rg.create_roads()
 
     def test_createCrossroad(self):
-        crossroad_generator = CG_CrossroadGenerator()
+        crossroad_generator = RG_CrossroadGenerator()
         crossroad_generator.add_crossroads()
 
         self.assertIsNotNone(bpy.data.collections.get("Crossroads"))
@@ -254,7 +254,7 @@ class TestCrossroadCreation(unittest.TestCase):
             self.assertIsNotNone(bpy.data.objects.get(f"Crossroad_{node.name}"))
 
     def test_createCrossroadOperator(self):
-        bpy.ops.cg.create_crossroads()
+        bpy.ops.rg.create_crossroads()
 
         self.assertIsNotNone(bpy.data.collections.get("Crossroads"))
         for node in self.nodesCollection.objects:

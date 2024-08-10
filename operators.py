@@ -1,6 +1,6 @@
 import bpy
 
-from .generators.road_net_generator import CG_RoadNetGenerator
+from .generators.road_net_generator import RG_RoadNetGenerator
 from .utils.collection_management import delete_collections_with_objects
 from .utils.curve_management import visible_curves
 
@@ -10,25 +10,25 @@ from .utils.curve_management import visible_curves
 # ------------------------------------------------------------------------
 
 
-class CG_CreateAll(bpy.types.Operator):
-    """Create roads, kerbs and crossroads for all visible curves in the scene"""
+class RG_CreateAll(bpy.types.Operator):
+    """Create roads, kerbs, crossroads and sidewalks for all visible curves in the scene"""
     bl_label = "Create All"
-    bl_idname = "cg.create_all"
+    bl_idname = "rg.create_all"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         curves = visible_curves()
 
-        road_net_generator = CG_RoadNetGenerator(curves)
+        road_net_generator = RG_RoadNetGenerator(curves)
         road_net_generator.create()
 
         return {"FINISHED"}
 
 
-class CG_DeleteAll(bpy.types.Operator):
+class RG_DeleteAll(bpy.types.Operator):
     """Delete all created meshes and the collections themselves"""
     bl_label = "Delete All"
-    bl_idname = "cg.delete_all"
+    bl_idname = "rg.delete_all"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):

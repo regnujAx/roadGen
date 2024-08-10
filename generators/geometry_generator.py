@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class CG_GeometryGenerator(ABC):
+class RG_GeometryGenerator(ABC):
     def __init__(self):
         pass
 

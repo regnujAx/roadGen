@@ -1,11 +1,11 @@
 import bpy
 
-from .geometry_generator import CG_GeometryGenerator
-from ..road import CG_Road
+from .geometry_generator import RG_GeometryGenerator
+from ..road import RG_Road
 from ..utils.mesh_management import add_mesh_to_curve, apply_transform
 
 
-class CG_RoadGenerator(CG_GeometryGenerator):
+class RG_RoadGenerator(RG_GeometryGenerator):
     def __init__(self):
         self.roads = []
 
@@ -21,7 +21,7 @@ class CG_RoadGenerator(CG_GeometryGenerator):
         # but without its location and its properties such as radius
         apply_transform(curve, location=False, properties=False)
 
-        road = CG_Road(curve)
+        road = RG_Road(curve)
         add_road_lanes(road)
         self.roads.append(road)
 
@@ -31,7 +31,7 @@ class CG_RoadGenerator(CG_GeometryGenerator):
 # ------------------------------------------------------------------------
 
 
-def add_road_lanes(road: CG_Road):
+def add_road_lanes(road: RG_Road):
     road_lane_mesh_template_inside = bpy.data.objects.get("Road_Lane_Inside")
 
     for side in ["Left", "Right"]:

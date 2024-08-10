@@ -1,7 +1,7 @@
 from ..utils.curve_management import visible_curves
 
 
-class CG_DataGenerator():
+class RG_DataGenerator():
     def __init__(self):
         self.curves = visible_curves()
 

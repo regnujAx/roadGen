@@ -1,20 +1,20 @@
-# To use this add-on you have to zip the directory containing this file (cityGen)
+# To use this add-on you have to zip the directory containing this file (roadGen)
 # and install the zip in the .blend file.
 # To install the add-on open your .blend file and go to Edit -> Preferences -> Add-ons -> Install.
-# Navigate to the directory where the zip-file is located that contains the cityGen directory and select it.
+# Navigate to the directory where the zip-file is located that contains the roadGen directory and select it.
 # The add-on should now listed and you have to enable it by clicking the checkbox.
 # If you don't see it, select User in the dropdown.
 # When enabled, you can use it in the 3D Viewport Object Mode.
 
 
 bl_info = {
-    "name": "CityGen",
+    "name": "RoadGen",
     "author": "Alexander Junger",
     "version": (1, 0),
     "blender": (3, 6, 11),
-    "location": "View3D > Toolbar > CityGen",
+    "location": "View3D > Toolbar > RoadGen",
     "category": "Object",
-    "description": "Generate a procedural city."
+    "description": "Generate a procedural road network."
 }
 
 
@@ -31,8 +31,8 @@ from importlib import reload
 
 
 # Make sure imports work even when main folder is named differently
-if __name__ != "cityGen":
-    sys.modules["cityGen"] = sys.modules[__name__]
+if __name__ != "roadGen":
+    sys.modules["roadGen"] = sys.modules[__name__]
 
 # ------------------------------------------------------------------------
 #    Project Dependent Imports
@@ -45,7 +45,7 @@ if dir not in sys.path:
     sys.path.append(dir)
 
 
-from . import (operators, properties)
+from . import operators
 from .generators import crossroad_generator, data_generator, geometry_generator, kerb_generator, road_generator, road_net_generator
 from .utils import collection_management, curve_management, mesh_management
 
@@ -53,7 +53,6 @@ reload(collection_management)
 reload(curve_management)
 reload(mesh_management)
 reload(operators)
-reload(properties)
 reload(crossroad_generator)
 reload(data_generator)
 reload(geometry_generator)
@@ -61,10 +60,7 @@ reload(kerb_generator)
 reload(road_generator)
 reload(road_net_generator)
 
-from .operators import (
-    CG_CreateAll,
-    CG_DeleteAll)
-from .properties import CG_RoadProperties
+from .operators import RG_CreateAll, RG_DeleteAll
 
 
 # ------------------------------------------------------------------------
@@ -72,32 +68,20 @@ from .properties import CG_RoadProperties
 # ------------------------------------------------------------------------
 
 
-class CG_RoadPanel(bpy.types.Panel):
+class RG_RoadPanel(bpy.types.Panel):
     bl_label = "Road Generation"
-    bl_idname = "citygen_road_panel"
+    bl_idname = "roadGen_road_panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "CityGen"
+    bl_category = "RoadGen"
     bl_context = "objectmode"
     bl_order = 1
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("cg.create_all")
-        layout.operator("cg.delete_all")
+        layout.operator("rg.create_all")
+        layout.operator("rg.delete_all")
 
-
-# class CG_BuildingPanel(bpy.types.Panel):
-#     bl_label = "Building Generation"
-#     bl_idname = "citygen_building_panel"
-#     bl_space_type = "VIEW_3D"
-#     bl_region_type = "UI"
-#     bl_category = "CityGen"
-#     bl_context = "objectmode"
-#     bl_order = 1
-
-#     def draw(self, context):
-#         layout = self.layout
 
 # ------------------------------------------------------------------------
 #    Registration of Properties, Operators and the Panel
@@ -105,11 +89,9 @@ class CG_RoadPanel(bpy.types.Panel):
 
 
 classes = (
-    CG_RoadProperties,
-    CG_CreateAll,
-    CG_DeleteAll,
-    CG_RoadPanel,
-    # CG_BuildingPanel
+    RG_CreateAll,
+    RG_DeleteAll,
+    RG_RoadPanel
 )
 
 
@@ -117,11 +99,7 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Scene.road_props = bpy.props.PointerProperty(type=CG_RoadProperties)
-
 
 def unregister():
-    del bpy.types.Scene.road_props
-
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

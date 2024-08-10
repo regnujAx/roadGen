@@ -2,8 +2,8 @@ import bpy
 import math
 import mathutils
 
-from .geometry_generator import CG_GeometryGenerator
-from ..road import CG_Road
+from .geometry_generator import RG_GeometryGenerator
+from ..road import RG_Road
 from ..utils.collection_management import first_and_last_objects_from_collections, link_to_collection, objects_from_collection
 from ..utils.mesh_management import (
     add_mesh_to_curve,
@@ -14,7 +14,7 @@ from ..utils.mesh_management import (
     set_origin)
 
 
-class CG_SidewalkGenerator(CG_GeometryGenerator):
+class RG_SidewalkGenerator(RG_GeometryGenerator):
     def __init__(self, sidewalk_mesh_template: bpy.types.Object = None):
         self.sidewalks = {}
         self.sidewalk_mesh_template = sidewalk_mesh_template if sidewalk_mesh_template else bpy.data.objects.get("Sidewalk")
@@ -22,7 +22,7 @@ class CG_SidewalkGenerator(CG_GeometryGenerator):
         if not self.sidewalk_mesh_template:
             print("Check whether the object Sidewalk is present, it is missing.")
 
-    def add_geometry(self, curve: bpy.types.Object = None, road: CG_Road = None, side: str = None):
+    def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None):
         offset = bpy.data.objects.get("Kerb").dimensions[1]
 
         if curve:
