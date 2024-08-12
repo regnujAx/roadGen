@@ -11,7 +11,7 @@ bl_info = {
     "name": "RoadGen",
     "author": "Alexander Junger",
     "version": (1, 0),
-    "blender": (3, 6, 11),
+    "blender": (3, 6, 12),
     "location": "View3D > Toolbar > RoadGen",
     "category": "Object",
     "description": "Generate a procedural road network."
@@ -75,7 +75,6 @@ class RG_RoadPanel(bpy.types.Panel):
     bl_region_type = "UI"
     bl_category = "RoadGen"
     bl_context = "objectmode"
-    bl_order = 1
 
     def draw(self, context):
         layout = self.layout
@@ -84,7 +83,7 @@ class RG_RoadPanel(bpy.types.Panel):
 
 
 # ------------------------------------------------------------------------
-#    Registration of Properties, Operators and the Panel
+#    Registration of Operators and Panel
 # ------------------------------------------------------------------------
 
 

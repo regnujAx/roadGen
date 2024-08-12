@@ -10,7 +10,7 @@ class RG_RoadNetGenerator:
     def __init__(self, curves: list):
         self.curves = curves
 
-    def create(self):
+    def generate(self):
         datamanager = RG_DataGenerator()
         datamanager.create_road_data()
 

@@ -20,7 +20,7 @@ class RG_CreateAll(bpy.types.Operator):
         curves = visible_curves()
 
         road_net_generator = RG_RoadNetGenerator(curves)
-        road_net_generator.create()
+        road_net_generator.generate()
 
         return {"FINISHED"}
 

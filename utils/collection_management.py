@@ -2,7 +2,8 @@ import bpy
 
 
 def crossing_points():
-    return objects_from_collection("Markers")
+    markers = objects_from_collection("Markers")
+    return [marker for marker in markers if marker.visible_get()]
 
 
 def delete_collections_with_objects(collections: list):

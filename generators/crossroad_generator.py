@@ -23,9 +23,10 @@ class RG_CrossroadGenerator(RG_GeometryGenerator):
     def add_geometry(self, crossing_point: bpy.types.Object):
         curves_number = int(crossing_point["Number of Curves"])
 
-        curves = crossing_curves(crossing_point, curves_number)
-        crossroad = add_crossroad(curves, crossing_point, self.kerb_generator, self.sidewalk_generator)
-        self.crossroads.append(crossroad)
+        if curves_number > 1:
+            curves = crossing_curves(crossing_point, curves_number)
+            crossroad = add_crossroad(curves, crossing_point, self.kerb_generator, self.sidewalk_generator)
+            self.crossroads.append(crossroad)
 
 
 # ------------------------------------------------------------------------
@@ -260,10 +261,8 @@ def outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types.Obj
 
     # Determine the road lane meshes corresponding to the curve
     road_lanes = objects_from_collection("Road Lanes")
-    # ToDo: `endswith()` and `in` are not optimal for multiple road lanes per side and are linked to specific name conventions
     # `in` presupposes that the name of the first curve is indexed (i.e. BezierCurve.000 instead of BezierCurve)
     curve_road_lanes = [road_lane for road_lane in road_lanes if curve.name in road_lane.name]
-    # curve_road_lanes = [road_lane for road_lane in road_lanes if road_lane.name.endswith(curve.name)]
 
     outer_bottom_vertices = []
     hit_objects = []
