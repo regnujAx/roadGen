@@ -21,12 +21,15 @@ class RG_CrossroadGenerator(RG_GeometryGenerator):
         self.crossroads = []
 
     def add_geometry(self, crossing_point: bpy.types.Object):
-        curves_number = int(crossing_point["Number of Curves"])
+        curves_number = crossing_point.get("Number of Curves")
 
-        if curves_number > 1:
-            curves = crossing_curves(crossing_point, curves_number)
-            crossroad = add_crossroad(curves, crossing_point, self.kerb_generator, self.sidewalk_generator)
-            self.crossroads.append(crossroad)
+        if curves_number:
+            curves_number = int(crossing_point["Number of Curves"])
+
+            if curves_number > 1:
+                curves = crossing_curves(crossing_point, curves_number)
+                crossroad = add_crossroad(curves, crossing_point, self.kerb_generator, self.sidewalk_generator)
+                self.crossroads.append(crossroad)
 
 
 # ------------------------------------------------------------------------
@@ -63,6 +66,7 @@ def add_crossroad(
 
     # Check whether the first two vertices are in the correct order; if not, swap them
     vertex = closest_point([vertices_to_remove[0], vertices_to_remove[1]], vertices_to_remove[2])
+
     if vertex != vertices_to_remove[1]:
         v = vertices_to_remove[1]
         vertices_to_remove[1] = vertices_to_remove[0]

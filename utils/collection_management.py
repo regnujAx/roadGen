@@ -27,7 +27,10 @@ def first_and_last_objects_from_collections(collection_names: list, number_of_ob
 
 
 def hide_collection(collection_name: str):
-    bpy.context.view_layer.layer_collection.children[collection_name].hide_viewport = True
+    collection = bpy.data.collections.get(collection_name)
+
+    if collection:
+        bpy.context.view_layer.layer_collection.children[collection_name].hide_viewport = True
 
 
 def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_collection_name: str = None):
