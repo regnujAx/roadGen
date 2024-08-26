@@ -2,12 +2,12 @@ import bpy
 
 
 def crossing_points():
-    markers = objects_from_collection("Markers")
+    markers = objects_from_collection("Crossing Points")
     return [marker for marker in markers if marker.visible_get()]
 
 
-def delete_collections_with_objects(collections: list):
-    for collection_name in collections:
+def delete_collections_with_objects(collection_names: list):
+    for collection_name in collection_names:
         objects = objects_from_collection(collection_name)
 
         while objects:
@@ -31,6 +31,11 @@ def hide_collection(collection_name: str):
 
     if collection:
         bpy.context.view_layer.layer_collection.children[collection_name].hide_viewport = True
+
+
+def hide_collections(collection_names: list):
+    for collection_name in collection_names:
+        hide_collection(collection_name)
 
 
 def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_collection_name: str = None):

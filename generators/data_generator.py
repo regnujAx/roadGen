@@ -1,9 +1,6 @@
-from ..utils.curve_management import visible_curves
-
-
 class RG_DataGenerator():
-    def __init__(self):
-        self.curves = visible_curves()
+    def __init__(self, curves: list = None):
+        self.curves = curves
 
     def create_crossroad_data(self):
         return {"FINISHED"}

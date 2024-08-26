@@ -1,6 +1,7 @@
 import bpy
 import math
-import mathutils
+
+from mathutils import Vector
 
 from .geometry_generator import RG_GeometryGenerator
 from ..road import RG_Road
@@ -81,7 +82,7 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
                     apply_modifiers(mesh_copy)
                     set_origin(mesh_copy)
                     # Scale the mesh copy a little bit up to get better results for the next step
-                    mesh_copy.scale = mathutils.Vector((1.001, 1.001, 1.001))
+                    mesh_copy.scale = Vector((1.001, 1.001, 1.001))
 
                     # Add a boolean difference modifier to the original mesh with the mesh copy as reference object
                     # to remove the intersecting part(s), i.e. the mesh copy, from the original mesh

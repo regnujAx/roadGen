@@ -1,12 +1,14 @@
 import bpy
 import math
-import mathutils
+
+from mathutils import Vector
 
 from .geometry_generator import RG_GeometryGenerator
 from .kerb_generator import RG_KerbGenerator
 from .sidewalk_generator import RG_SidewalkGenerator
 from ..utils.collection_management import objects_from_collection
 from ..utils.mesh_management import (
+    closest_curve_point,
     closest_point,
     coplanar_faces,
     find_closest_points,
@@ -114,10 +116,10 @@ def add_crossroad(
             # Add all vertices of the created line mesh to the crossroad vertices
             line_mesh = bpy.data.objects.get(f"Line_Mesh_Crossroad_Curve_{curve_0}_{curve_1}")
             for vertex in line_mesh.data.vertices:
-                vertex_vec = mathutils.Vector((vertex.co.x, vertex.co.y, 0.0))
+                vertex_vec = Vector((vertex.co.x, vertex.co.y, 0.0))
                 vertices.append(vertex_vec)
         else:
-            vertex_vec = mathutils.Vector((vertex_0.x, vertex_0.y, 0.0))
+            vertex_vec = Vector((vertex_0.x, vertex_0.y, 0.0))
             vertices.append(vertex_vec)
 
         # Remove the closest vertex from the list
@@ -153,7 +155,7 @@ def add_crossroad(
     return crossroad
 
 
-def add_crossroad_kerb(curve_names: list, points: list, crossing_point: mathutils.Vector, kerb_generator: RG_KerbGenerator):
+def add_crossroad_kerb(curve_names: list, points: list, crossing_point: Vector, kerb_generator: RG_KerbGenerator):
     direction_unit_vectors = []
     for curve_name in curve_names:
         road_curve = bpy.data.objects.get(curve_name)
@@ -214,7 +216,7 @@ def add_crossroad_kerb(curve_names: list, points: list, crossing_point: mathutil
     kerb_generator.add_geometry(curve=curve)
 
 
-def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.Vector, ray_end: mathutils.Vector):
+def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: Vector, ray_end: Vector):
     # Translate the begin and the end of the ray into local space of the road lane
     location = curve_road_lane.location
     origin = ray_begin - location
@@ -226,19 +228,6 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: mathutils.V
 
     # Return the result of the ray cast
     return curve_road_lane.ray_cast(origin, direction)
-
-
-def closest_curve_point(curve: bpy.types.Object, reference_point: mathutils.Vector):
-    # Get the curve end points in world space
-    m = curve.matrix_world
-    first_curve_point = curve.data.splines[0].bezier_points[0]
-    last_curve_point = curve.data.splines[0].bezier_points[-1]
-    first_curve_point_co = m @ first_curve_point.co
-    last_curve_point_co = m @ last_curve_point.co
-
-    point = closest_point([first_curve_point_co, last_curve_point_co], reference_point)
-
-    return first_curve_point if point == first_curve_point_co else last_curve_point
 
 
 def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):

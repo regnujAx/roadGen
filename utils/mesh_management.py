@@ -1,7 +1,8 @@
 import bmesh
 import bpy
 import math
-import mathutils
+
+from mathutils import bvhtree, kdtree, Vector
 
 from .collection_management import link_to_collection
 
@@ -87,7 +88,7 @@ def add_mesh_to_curve(
         child_collection_name = mesh.name
         sign = -1 if index < 0 else 1
         y = lane_width * index + sign * (mesh.dimensions[1] / 2 + offset)
-    mesh.location += mathutils.Vector((x, y, z))
+    mesh.location += Vector((x, y, z))
 
     # Calculate and update the x-dimension of the mesh so it fits better to its curve
     threshold = 0.001
@@ -124,7 +125,20 @@ def apply_transform(
     object.select_set(False)
 
 
-def closest_point(points: list, reference_point: mathutils.Vector):
+def closest_curve_point(curve: bpy.types.Object, reference_point: Vector):
+    # Get the curve end points in world space
+    m = curve.matrix_world
+    first_curve_point = curve.data.splines[0].bezier_points[0]
+    last_curve_point = curve.data.splines[0].bezier_points[-1]
+    first_curve_point_co = m @ first_curve_point.co
+    last_curve_point_co = m @ last_curve_point.co
+
+    point = closest_point([first_curve_point_co, last_curve_point_co], reference_point)
+
+    return first_curve_point if point == first_curve_point_co else last_curve_point
+
+
+def closest_point(points: list, reference_point: Vector):
     closest_point = points[0]
 
     for i in range(len(points) - 1):
@@ -142,7 +156,7 @@ def closest_point(points: list, reference_point: mathutils.Vector):
 
 def create_kdtree(vertices: list, size: int):
     # Create a KD-Tree to perform a spatial search
-    kd = mathutils.kdtree.KDTree(size)
+    kd = kdtree.KDTree(size)
     for i, v in enumerate(vertices):
         kd.insert(v, i)
 
@@ -152,8 +166,7 @@ def create_kdtree(vertices: list, size: int):
     return kd
 
 
-def coplanar_faces(
-        mesh: bpy.types.Object, normal: mathutils.Vector, index: int, road_height: float = 0.1, threshold: float = 0.001):
+def coplanar_faces(mesh: bpy.types.Object, normal: Vector, index: int, road_height: float = 0.1, threshold: float = 0.001):
     data = mesh.data
     bm = bmesh.new()
     bm.from_mesh(data)
@@ -205,7 +218,7 @@ def edit_mesh_at_positions(mesh_name: str, positions: list):
             if total_length > pos:
                 v0 = edge.verts[0]
                 v1 = edge.verts[1]
-                vec = mathutils.Vector(v1.co) - mathutils.Vector(v0.co)
+                vec = Vector(v1.co) - Vector(v0.co)
                 unit_vec = vec / edge_length
                 object_position = v0.co + unit_vec * p
                 break
@@ -230,7 +243,7 @@ def edit_mesh_at_positions(mesh_name: str, positions: list):
     bm_line.free()
 
 
-def find_closest_points(list: list, reference_point: mathutils.Vector, find_all: bool = True):
+def find_closest_points(list: list, reference_point: Vector, find_all: bool = True):
     num_vertices = len(list)
     kd = create_kdtree(list, num_vertices)
     n = num_vertices if find_all else 1
@@ -249,7 +262,7 @@ def intersecting_meshes(meshes: list):
         bm1.transform(mesh.matrix_world)
 
         # Create a BVH tree for the BMesh
-        mesh_BVHtree = mathutils.bvhtree.BVHTree.FromBMesh(bm1)
+        mesh_BVHtree = bvhtree.BVHTree.FromBMesh(bm1)
 
         for other_mesh in meshes:
             # Skip each other mesh if it belongs to a crossroad and is the same mesh as the current mesh
@@ -265,7 +278,7 @@ def intersecting_meshes(meshes: list):
             bm2 = bmesh.new()
             bm2.from_mesh(other_mesh.data)
             bm2.transform(other_mesh.matrix_world)
-            other_mesh_BVHtree = mathutils.bvhtree.BVHTree.FromBMesh(bm2)
+            other_mesh_BVHtree = bvhtree.BVHTree.FromBMesh(bm2)
 
             # Get the intersecting parts (indices) between the BVH trees
             inter = mesh_BVHtree.overlap(other_mesh_BVHtree)
