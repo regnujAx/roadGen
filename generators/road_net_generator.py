@@ -15,8 +15,9 @@ class RG_RoadNetGenerator:
 
     def generate(self):
         # Visualize the graph in Blender
-        graph_to_net_generator = RG_GraphToNetGenerator(self.crossroad_offset, self.graph)
-        graph_to_net_generator.generate()
+        if self.graph:
+            graph_to_net_generator = RG_GraphToNetGenerator(self.crossroad_offset, self.graph)
+            graph_to_net_generator.generate()
 
         curves = visible_curves()
 
