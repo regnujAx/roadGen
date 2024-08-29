@@ -21,16 +21,17 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
         self.sidewalk_mesh_template = sidewalk_mesh_template if sidewalk_mesh_template else bpy.data.objects.get("Sidewalk")
 
         if not self.sidewalk_mesh_template:
-            print("Check whether the object Sidewalk is present, it is missing.")
+            print("Check whether the object Sidewalk exists. It is missing.")
 
-    def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None):
-        offset = bpy.data.objects.get("Kerb").dimensions[1]
-
+    def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None, offset: float = 0.0):
         if curve:
             kerb_mesh_name = "Kerb_" + curve.name
 
             mesh = add_mesh_to_curve(self.sidewalk_mesh_template, curve, "Sidewalk", 0.0, 0, offset)
         elif road:
+            if not road.sidewalk_mesh_template:
+                road.sidewalk_mesh_template = self.sidewalk_mesh_template
+
             curve = road.curve
             kerb_mesh_name = "Kerb_" + side + "_" + road.curve.name
 

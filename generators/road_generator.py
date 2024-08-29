@@ -2,7 +2,7 @@ import bpy
 
 from .geometry_generator import RG_GeometryGenerator
 from ..road import RG_Road
-from ..utils.mesh_management import add_mesh_to_curve, apply_transform
+from ..utils.mesh_management import add_mesh_to_curve, apply_transform, curve_to_mesh
 
 
 class RG_RoadGenerator(RG_GeometryGenerator):
@@ -25,6 +25,9 @@ class RG_RoadGenerator(RG_GeometryGenerator):
         add_road_lanes(road)
         self.roads.append(road)
 
+        # Create a line mesh copy of the curve
+        curve_to_mesh(curve)
+
 
 # ------------------------------------------------------------------------
 #    Helper Methods
@@ -34,8 +37,16 @@ class RG_RoadGenerator(RG_GeometryGenerator):
 def add_road_lanes(road: RG_Road):
     road_lane_mesh_template_inside = bpy.data.objects.get("Road_Lane_Inside")
 
+    if not road.road_lane_mesh_template_inside:
+        road.road_lane_mesh_template_inside = road_lane_mesh_template_inside
+
     for side in ["Left", "Right"]:
         road_lane_mesh_template_outside = bpy.data.objects.get(f"Road_Lane_Border_{side}")
+
+        if not road.road_lane_mesh_template_left and side == "Left":
+            road.road_lane_mesh_template_left = road_lane_mesh_template_outside
+        elif not road.road_lane_mesh_template_right and side == "Right":
+            road.road_lane_mesh_template_right = road_lane_mesh_template_outside
 
         if road_lane_mesh_template_outside and road_lane_mesh_template_inside:
             lane_number = road.left_lanes if side == "Left" else road.right_lanes

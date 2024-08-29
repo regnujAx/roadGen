@@ -10,12 +10,17 @@ class RG_KerbGenerator(RG_GeometryGenerator):
         self.kerb_mesh_template = kerb_mesh_template if kerb_mesh_template else bpy.data.objects.get("Kerb")
 
         if not self.kerb_mesh_template:
-            print("Check whether the object Kerb is present, it is missing.")
+            print("Check whether the object Kerb exists. It is missing.")
 
     def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None):
         if curve:
+            # Add a kerb for a crossroad curve
             mesh = add_mesh_to_curve(self.kerb_mesh_template, curve, "Kerb", 0.0, 0)
         elif road and side:
+            if not road.kerb_mesh_template:
+                road.kerb_mesh_template = self.kerb_mesh_template
+
+            # Add a kerb for a road
             index = road.left_lanes if side == "Left" else -road.right_lanes
             mesh = add_mesh_to_curve(self.kerb_mesh_template, road.curve, f"Kerb_{side}", road.lane_width, index)
 

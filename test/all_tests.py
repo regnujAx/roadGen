@@ -66,7 +66,7 @@ class TestRoadDataCreation(unittest.TestCase):
         self.assertIsNone(self.curve1.get("Lane Width"))
         self.assertIsNone(self.curve1.get("Left Lanes"))
         self.assertIsNone(self.curve1.get("Right Lanes"))
-        self.assertIsNone(self.curve1.get("Lantern Distance"))
+        self.assertIsNone(self.curve1.get("Lamp Distance"))
         self.assertIsNone(self.curve1.get("Left Dropped Kerbs"))
         self.assertIsNone(self.curve1.get("Right Dropped Kerbs"))
 
@@ -75,7 +75,7 @@ class TestRoadDataCreation(unittest.TestCase):
         self.assertEqual(self.curve1["Lane Width"], 2.5)
         self.assertEqual(self.curve1["Left Lanes"], 1)
         self.assertEqual(self.curve1["Right Lanes"], 1)
-        self.assertEqual(self.curve1["Lantern Distance"], 10.0)
+        self.assertEqual(self.curve1["Lamp Distance"], 10.0)
         self.assertEqual(self.curve1["Left Dropped Kerbs"], "5")
         self.assertEqual(self.curve1["Right Dropped Kerbs"], "15,30")
 
@@ -84,14 +84,14 @@ class TestRoadDataCreation(unittest.TestCase):
 
         self.curve2["Left Lanes"] = 2
         self.curve2["Right Lanes"] = 2
-        self.curve2["Lantern Distance"] = 50.0
+        self.curve2["Lamp Distance"] = 50.0
 
         self.datamanager.create_road_data()
 
         self.assertEqual(self.curve2["Lane Width"], 2.5)
         self.assertEqual(self.curve2["Left Lanes"], 2)
         self.assertEqual(self.curve2["Right Lanes"], 2)
-        self.assertEqual(self.curve2["Lantern Distance"], 50.0)
+        self.assertEqual(self.curve2["Lamp Distance"], 50.0)
         self.assertEqual(self.curve2["Left Dropped Kerbs"], "5")
         self.assertEqual(self.curve2["Right Dropped Kerbs"], "15,30")
 
@@ -99,7 +99,7 @@ class TestRoadDataCreation(unittest.TestCase):
         self.assertIsNone(self.curve1.get("Lane Width"))
         self.assertIsNone(self.curve1.get("Left Lanes"))
         self.assertIsNone(self.curve1.get("Right Lanes"))
-        self.assertIsNone(self.curve1.get("Lantern Distance"))
+        self.assertIsNone(self.curve1.get("Lamp Distance"))
         self.assertIsNone(self.curve1.get("Left Dropped Kerbs"))
         self.assertIsNone(self.curve1.get("Right Dropped Kerbs"))
 
@@ -108,7 +108,7 @@ class TestRoadDataCreation(unittest.TestCase):
         self.assertEqual(self.curve1["Lane Width"], 2.5)
         self.assertEqual(self.curve1["Left Lanes"], 1)
         self.assertEqual(self.curve1["Right Lanes"], 1)
-        self.assertEqual(self.curve1["Lantern Distance"], 10.0)
+        self.assertEqual(self.curve1["Lamp Distance"], 10.0)
         self.assertEqual(self.curve1["Left Dropped Kerbs"], "5")
         self.assertEqual(self.curve1["Right Dropped Kerbs"], "15,30")
 
@@ -117,14 +117,14 @@ class TestRoadDataCreation(unittest.TestCase):
 
         self.curve2["Left Lanes"] = 2
         self.curve2["Right Lanes"] = 2
-        self.curve2["Lantern Distance"] = 50.0
+        self.curve2["Lamp Distance"] = 50.0
 
         bpy.ops.rg.create_road_data()
 
         self.assertEqual(self.curve2["Lane Width"], 2.5)
         self.assertEqual(self.curve2["Left Lanes"], 2)
         self.assertEqual(self.curve2["Right Lanes"], 2)
-        self.assertEqual(self.curve2["Lantern Distance"], 50.0)
+        self.assertEqual(self.curve2["Lamp Distance"], 50.0)
         self.assertEqual(self.curve2["Left Dropped Kerbs"], "5")
         self.assertEqual(self.curve2["Right Dropped Kerbs"], "15,30")
 

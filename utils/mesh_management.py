@@ -32,8 +32,7 @@ def add_line_following_mesh(mesh_name: str):
     deselect_all()
 
     # Link the line mesh to the correct colletion
-    collection_name = "Line Meshes"
-    link_to_collection(line_mesh, collection_name)
+    link_to_collection(line_mesh, "Line Meshes")
 
     line_mesh.select_set(True)
 
@@ -111,6 +110,84 @@ def add_mesh_to_curve(
     return mesh
 
 
+def add_object_at_position(object_template, position):
+    # Create a copy of the template and link it to its collection
+    object_copy = object_template.copy()
+    collection_name = object_template.name + "s"
+    link_to_collection(object_copy, collection_name)
+
+    # Hide the copy if it is an empty object
+    if object_copy.type == 'EMPTY':
+        object_copy.hide_set(True)
+
+    # Copy also the children of the object template
+    for child in object_template.children:
+        child_copy = child.copy()
+        child_copy.parent = object_copy
+        child_copy.matrix_parent_inverse = child.matrix_parent_inverse
+        link_to_collection(child_copy, collection_name)
+
+    # Update the location of the object copy
+    object_copy.location = position
+
+    # The scene need to be updated so the locations are correct
+    bpy.context.view_layer.update()
+
+    return object_copy
+
+
+def add_objects(curve, side, object_template, distance, offset):
+    line_mesh = bpy.data.objects.get("Line_Mesh_Kerb_" + side + "_" + curve.name)
+    m = line_mesh.matrix_world
+
+    # Create a BMesh from the line mesh for edge length calculation
+    mesh_eval_data = line_mesh.data
+    bm_line = bmesh.new()
+    bm_line.from_mesh(mesh_eval_data)
+
+    counter = 1
+    length = 0
+    total_length = curve.data.splines[0].calc_length()
+    position = None
+
+    # Iterate over all line mesh edges to find the positions to add the objects
+    for edge in bm_line.edges:
+        edge_length = edge.calc_length()
+        length += edge_length
+
+        # Calculate the position on the line mesh when the distance is big enough
+        if length < total_length and length > distance * counter:
+            difference = length - distance * counter
+            v0 = edge.verts[0].co
+            v1 = edge.verts[1].co
+            vec = v1 - v0
+            unit_vec = vec / edge_length
+
+            # Calculate the accurate point between the two line mesh vertices
+            position = v0 + unit_vec * difference
+            position = m @ position
+
+            # Define a not parallel vector to get a correct orthogonal vector
+            if vec[0] != 0 or vec[2] != 0:
+                a = Vector((0, 0, 1))
+            else:
+                a = Vector((1, 0, 0))
+
+            # Calculate the cross product and its length to find an orthogonal vector
+            cross = a.cross(vec)
+            cross_length = math.sqrt(sum(i**2 for i in cross))
+            orthogonal_vec = cross / cross_length
+
+            # Shift this vector by an offset and the found position
+            shifted_position = position + orthogonal_vec * offset
+
+            counter += 1
+
+            # Add an object at the shifted position and rotate it
+            object = add_object_at_position(object_template, shifted_position)
+            rotate_object(object, position)
+
+
 def apply_modifiers(mesh: bpy.types.Object):
     bpy.context.view_layer.objects.active = mesh
 
@@ -154,18 +231,6 @@ def closest_point(points: list, reference_point: Vector):
     return closest_point
 
 
-def create_kdtree(vertices: list, size: int):
-    # Create a KD-Tree to perform a spatial search
-    kd = kdtree.KDTree(size)
-    for i, v in enumerate(vertices):
-        kd.insert(v, i)
-
-    # Balance (build) the KD-Tree
-    kd.balance()
-
-    return kd
-
-
 def coplanar_faces(mesh: bpy.types.Object, normal: Vector, index: int, road_height: float = 0.1, threshold: float = 0.001):
     data = mesh.data
     bm = bmesh.new()
@@ -189,6 +254,26 @@ def coplanar_faces(mesh: bpy.types.Object, normal: Vector, index: int, road_heig
     return [data.polygons[idx] for idx in coplanar_faces_ids]
 
 
+def create_kdtree(vertices: list, size: int):
+    # Create a KD-Tree to perform a spatial search
+    kd = kdtree.KDTree(size)
+    for i, v in enumerate(vertices):
+        kd.insert(v, i)
+
+    # Balance (build) the KD-Tree
+    kd.balance()
+
+    return kd
+
+
+def curve_to_mesh(curve: bpy.types.Object):
+    # Create a line mesh from the curve and link it to its collection
+    mesh = curve.to_mesh()
+    line_mesh = bpy.data.objects.new("Line_Mesh_" + curve.name, mesh.copy())
+    line_mesh.matrix_world = curve.matrix_world
+    link_to_collection(line_mesh, "Line Meshes")
+
+
 def deselect_all():
     for object in bpy.context.selected_objects:
         object.select_set(False)
@@ -196,8 +281,7 @@ def deselect_all():
 
 def edit_mesh_at_positions(mesh_name: str, positions: list):
     # Get the corresponding line mesh
-    line_mesh_name = "Line_Mesh_" + mesh_name
-    line_mesh = bpy.data.objects.get(line_mesh_name)
+    line_mesh = bpy.data.objects.get("Line_Mesh_" + mesh_name)
 
     # Create a BMesh from the line mesh for edge length calculation
     mesh_eval_data = line_mesh.data
@@ -216,11 +300,11 @@ def edit_mesh_at_positions(mesh_name: str, positions: list):
 
             # Calculate the position on the line mesh when a position is reached
             if total_length > pos:
-                v0 = edge.verts[0]
-                v1 = edge.verts[1]
-                vec = Vector(v1.co) - Vector(v0.co)
+                v0 = edge.verts[0].co
+                v1 = edge.verts[1].co
+                vec = v1 - v0
                 unit_vec = vec / edge_length
-                object_position = v0.co + unit_vec * p
+                object_position = v0 + unit_vec * p
                 break
 
             p -= edge_length
@@ -297,6 +381,35 @@ def line_meshes(curve_name: str):
     left_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
     right_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
     return left_line_mesh, right_line_mesh
+
+
+def rotate_object(object: bpy.types.Object, reference_point: Vector):
+    # Get the vector between the object and one of its children
+    child = object.children[1]
+    vec = child.matrix_world.to_translation() - object.location
+    vec.z = 0.0
+
+    # Get the reference vector between the object and the reference point
+    reference_vec = reference_point - object.location
+
+    # Calculate the dot product of the two vectors and their lengths
+    dot_product = vec.dot(reference_vec)
+    length_vec = math.sqrt(sum(a ** 2 for a in vec))
+    length_reference_vector = math.sqrt(sum(a ** 2 for a in reference_vec))
+
+    # Calculate the angle between the two vectors
+    cos_theta = dot_product / (length_vec * length_reference_vector)
+    angle_radian = math.acos(cos_theta)
+
+    # Calculate the cross product of the two vectors to check whether the reference vector is clockwise to the other vector,
+    # i.e. whether the angle between them is greater than 180°
+    cross = vec.cross(reference_vec)
+
+    if cross[2] < 0:
+        angle_radian = 2 * math.pi - angle_radian
+
+    # Rotate the object along the z-axis by the calculated angle
+    object.rotation_euler[2] = angle_radian
 
 
 def set_origin(object: bpy.types.Object, center: str = 'MEDIAN'):

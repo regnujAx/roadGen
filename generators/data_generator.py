@@ -20,9 +20,9 @@ class RG_DataGenerator():
                 curve["Right Lanes"] = 1
                 property_manager = curve.id_properties_ui("Right Lanes")
                 property_manager.update(soft_min=1, soft_max=4)
-            if curve.get("Lantern Distance") is None:
-                curve["Lantern Distance"] = 10.0
-                property_manager = curve.id_properties_ui("Lantern Distance")
+            if curve.get("Lamp Distance") is None:
+                curve["Lamp Distance"] = 10.0
+                property_manager = curve.id_properties_ui("Lamp Distance")
                 property_manager.update(soft_min=1, soft_max=5000, subtype="DISTANCE")
             if curve.get("Left Dropped Kerbs") is None:
                 curve["Left Dropped Kerbs"] = "5"

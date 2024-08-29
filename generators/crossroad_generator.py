@@ -11,6 +11,7 @@ from ..utils.mesh_management import (
     closest_curve_point,
     closest_point,
     coplanar_faces,
+    curve_to_mesh,
     find_closest_points,
     link_to_collection,
     set_origin)
@@ -111,7 +112,8 @@ def add_crossroad(
             # Add a sidewalk between two different curves
             crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_0}_{curve_1}")
             if crossroad_curve:
-                sidewalk_generator.add_geometry(curve=crossroad_curve)
+                offset = kerb_generator.kerb_mesh_template.dimensions[1]
+                sidewalk_generator.add_geometry(curve=crossroad_curve, offset=offset)
 
             # Add all vertices of the created line mesh to the crossroad vertices
             line_mesh = bpy.data.objects.get(f"Line_Mesh_Crossroad_Curve_{curve_0}_{curve_1}")
@@ -207,10 +209,7 @@ def add_crossroad_kerb(curve_names: list, points: list, crossing_point: Vector, 
     link_to_collection(curve, "Crossroad Curves")
 
     # Create a line mesh from the curve (needed for crossroad plane) and link it to its collection
-    mesh = curve.to_mesh()
-    line_mesh = bpy.data.objects.new("Line_Mesh_" + curve.name, mesh.copy())
-    line_mesh.matrix_world = curve.matrix_world
-    link_to_collection(line_mesh, "Line Meshes")
+    curve_to_mesh(curve)
 
     # Add a kerb to the curve
     kerb_generator.add_geometry(curve=curve)
