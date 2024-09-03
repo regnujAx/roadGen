@@ -90,10 +90,10 @@ def add_mesh_to_curve(
     mesh.location += Vector((x, y, z))
 
     # Calculate and update the x-dimension of the mesh so it fits better to its curve
+    curve_length = curve.data.splines[0].calc_length()
+    minimum_width = 2.0
     threshold = 0.001
-    x_dim = curve.data.splines[0].calc_length()
-    while x_dim > 3.0:
-        x_dim /= 2.0
+    x_dim = reduce_to_minimum(curve_length, minimum_width)
     mesh.dimensions[0] = x_dim + threshold
 
     # Apply the correct curve for the mesh modifiers
@@ -110,7 +110,7 @@ def add_mesh_to_curve(
     return mesh
 
 
-def add_object_at_position(object_template, position):
+def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     # Create a copy of the template and link it to its collection
     object_copy = object_template.copy()
     collection_name = object_template.name + "s"
@@ -136,7 +136,7 @@ def add_object_at_position(object_template, position):
     return object_copy
 
 
-def add_objects(curve, side, object_template, distance, offset):
+def add_objects(curve: bpy.types.Object, side: str, object_template: bpy.types.Object, minimum_distance: float, offset: float):
     line_mesh = bpy.data.objects.get("Line_Mesh_Kerb_" + side + "_" + curve.name)
     m = line_mesh.matrix_world
 
@@ -145,9 +145,12 @@ def add_objects(curve, side, object_template, distance, offset):
     bm_line = bmesh.new()
     bm_line.from_mesh(mesh_eval_data)
 
-    counter = 1
+    total_length = line_mesh_length(bm_line)
+    distance = reduce_to_minimum(total_length, minimum_distance)
+
+    correction_difference = 0
+    counter = 0
     length = 0
-    total_length = curve.data.splines[0].calc_length()
     position = None
 
     # Iterate over all line mesh edges to find the positions to add the objects
@@ -155,16 +158,33 @@ def add_objects(curve, side, object_template, distance, offset):
         edge_length = edge.calc_length()
         length += edge_length
 
+        corrected_length = length - correction_difference
+        current_distance = distance * counter
+
         # Calculate the position on the line mesh when the distance is big enough
-        if length < total_length and length > distance * counter:
-            difference = length - distance * counter
+        if corrected_length <= total_length and corrected_length >= current_distance:
             v0 = edge.verts[0].co
             v1 = edge.verts[1].co
             vec = v1 - v0
             unit_vec = vec / edge_length
 
+            if counter == 0:
+                # Use no difference for the first position, because we only use the first vertex for this
+                # and not the second vertex
+                difference = 0
+                vertex = v0
+            else:
+                difference = corrected_length - current_distance
+                vertex = v1
+
+                # Add the difference to the current length for more precise finding of further positions
+                length += difference
+
+                # Note the difference for correction of further positions
+                correction_difference += difference
+
             # Calculate the accurate point between the two line mesh vertices
-            position = v0 + unit_vec * difference
+            position = vertex - unit_vec * difference
             position = m @ position
 
             # Define a not parallel vector to get a correct orthogonal vector
@@ -181,11 +201,11 @@ def add_objects(curve, side, object_template, distance, offset):
             # Shift this vector by an offset and the found position
             shifted_position = position + orthogonal_vec * offset
 
-            counter += 1
-
             # Add an object at the shifted position and rotate it
             object = add_object_at_position(object_template, shifted_position)
             rotate_object(object, position)
+
+            counter += 1
 
 
 def apply_modifiers(mesh: bpy.types.Object):
@@ -291,15 +311,15 @@ def edit_mesh_at_positions(mesh_name: str, positions: list):
     object_position = None
     for pos in positions:
         p = pos
-        total_length = 0
+        length = 0
 
         # Iterate over all line mesh edges to find its position, which corresponds to the given position
         for edge in bm_line.edges:
             edge_length = edge.calc_length()
-            total_length += edge_length
+            length += edge_length
 
             # Calculate the position on the line mesh when a position is reached
-            if total_length > pos:
+            if length > pos:
                 v0 = edge.verts[0].co
                 v1 = edge.verts[1].co
                 vec = v1 - v0
@@ -377,10 +397,29 @@ def intersecting_meshes(meshes: list):
     return intersecting_meshes
 
 
+def line_mesh_length(line_mesh: bmesh):
+    total_length = 0
+
+    for edge in line_mesh.edges:
+        edge_length = edge.calc_length()
+        total_length += edge_length
+
+    return total_length
+
+
 def line_meshes(curve_name: str):
     left_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
     right_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
+
     return left_line_mesh, right_line_mesh
+
+
+def reduce_to_minimum(length: float, minimum: float):
+    # Multiply the minimum by 2 to get the next largest number
+    while length > minimum * 2:
+        length /= 2.0
+
+    return length
 
 
 def rotate_object(object: bpy.types.Object, reference_point: Vector):
