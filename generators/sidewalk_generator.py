@@ -16,28 +16,29 @@ from ..utils.mesh_management import (
 
 
 class RG_SidewalkGenerator(RG_GeometryGenerator):
-    def __init__(self, sidewalk_mesh_template: bpy.types.Object = None):
+    def __init__(self, mesh_template: bpy.types.Object = None, offset: float = 0.0):
+        self.offset = offset
         self.sidewalks = {}
-        self.sidewalk_mesh_template = sidewalk_mesh_template if sidewalk_mesh_template else bpy.data.objects.get("Sidewalk")
+        self.mesh_template = mesh_template if mesh_template else bpy.data.objects.get("Sidewalk")
 
-        if not self.sidewalk_mesh_template:
+        if not self.mesh_template:
             print("Check whether the object Sidewalk exists. It is missing.")
 
-    def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None, offset: float = 0.0):
+    def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None):
         if curve:
             kerb_mesh_name = "Kerb_" + curve.name
 
-            mesh = add_mesh_to_curve(self.sidewalk_mesh_template, curve, "Sidewalk", 0.0, 0, offset)
+            mesh = add_mesh_to_curve(self.mesh_template, curve, "Sidewalk", 0.0, 0, self.offset)
         elif road:
             if not road.sidewalk_mesh_template:
-                road.sidewalk_mesh_template = self.sidewalk_mesh_template
+                road.sidewalk_mesh_template = self.mesh_template
 
             curve = road.curve
             kerb_mesh_name = "Kerb_" + side + "_" + road.curve.name
 
             index = road.left_lanes if side == "Left" else -road.right_lanes
             mesh = add_mesh_to_curve(
-                self.sidewalk_mesh_template, road.curve, f"Sidewalk_{side}", road.lane_width, index, offset)
+                self.mesh_template, road.curve, f"Sidewalk_{side}", road.lane_width, index, self.offset)
 
         if curve.name not in self.sidewalks:
             self.sidewalks[curve.name] = []

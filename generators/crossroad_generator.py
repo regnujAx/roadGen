@@ -23,15 +23,15 @@ class RG_CrossroadGenerator(RG_GeometryGenerator):
         self.kerb_generator = kerb_generator
         self.crossroads = []
 
-    def add_geometry(self, crossing_point: bpy.types.Object):
-        curves_number = crossing_point.get("Number of Curves")
+    def add_geometry(self, crossroad_point: bpy.types.Object):
+        curves_number = crossroad_point.get("Number of Curves")
 
         if curves_number:
-            curves_number = int(crossing_point["Number of Curves"])
+            curves_number = int(crossroad_point["Number of Curves"])
 
             if curves_number > 1:
-                curves = crossing_curves(crossing_point, curves_number)
-                crossroad = add_crossroad(curves, crossing_point, self.kerb_generator, self.sidewalk_generator)
+                curves = crossing_curves(crossroad_point, curves_number)
+                crossroad = add_crossroad(curves, crossroad_point, self.kerb_generator, self.sidewalk_generator)
                 self.crossroads.append(crossroad)
 
 
@@ -41,17 +41,17 @@ class RG_CrossroadGenerator(RG_GeometryGenerator):
 
 
 def add_crossroad(
-        curves: list, crossing_point: bpy.types.Object,
+        curves: list, crossroad_point: bpy.types.Object,
         kerb_generator: RG_KerbGenerator, sidewalk_generator: RG_SidewalkGenerator, height: float = 0.1):
     road_vertices = {}
     vertices_to_remove = []
 
     # Mark one point as a reference for sorting the vertices
-    reference_point = crossing_point.location
+    reference_point = crossroad_point.location
 
     for curve in curves:
         # Get the outer bottom vertices of the road lanes of a curve by casting a ray from the crossing point towards the curve
-        bottom_vertices = outer_bottom_vertices(curve, crossing_point)
+        bottom_vertices = outer_bottom_vertices(curve, crossroad_point)
 
         # Sort the vertices (clockwise) with respect to the reference point
         vertex = closest_point([bottom_vertices[0], bottom_vertices[1]], reference_point)
@@ -107,13 +107,12 @@ def add_crossroad(
 
         if curve_0 != curve_1:
             # Add a kerb between two different curves
-            add_crossroad_kerb([curve_0, curve_1], [vertex_0, vertex_1], crossing_point.location, kerb_generator)
+            add_crossroad_kerb([curve_0, curve_1], [vertex_0, vertex_1], crossroad_point.location, kerb_generator)
 
             # Add a sidewalk between two different curves
             crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_0}_{curve_1}")
             if crossroad_curve:
-                offset = kerb_generator.kerb_mesh_template.dimensions[1]
-                sidewalk_generator.add_geometry(curve=crossroad_curve, offset=offset)
+                sidewalk_generator.add_geometry(curve=crossroad_curve)
 
             # Add all vertices of the created line mesh to the crossroad vertices
             line_mesh = bpy.data.objects.get(f"Line_Mesh_Crossroad_Curve_{curve_0}_{curve_1}")
@@ -138,7 +137,7 @@ def add_crossroad(
     # Create the crossroad plane and link it to its corresponding collection
     mesh = bpy.data.meshes.new("Crossroad Mesh")
     mesh.from_pydata(vertices, [], faces)
-    crossroad_name = "Crossroad_" + crossing_point.name
+    crossroad_name = "Crossroad_" + crossroad_point.name
     crossroad = bpy.data.objects.new(crossroad_name, mesh)
     link_to_collection(crossroad, "Crossroads")
 
@@ -152,21 +151,20 @@ def add_crossroad(
 
     # Set the origin to the center of the mesh (Hint: This overwrites the location.)
     set_origin(crossroad, 'BOUNDS')
-    # set_origin(crossroad, crossing_point.location)
 
     return crossroad
 
 
-def add_crossroad_kerb(curve_names: list, points: list, crossing_point: Vector, kerb_generator: RG_KerbGenerator):
+def add_crossroad_kerb(curve_names: list, points: list, crossroad_point: Vector, kerb_generator: RG_KerbGenerator):
     direction_unit_vectors = []
     for curve_name in curve_names:
         road_curve = bpy.data.objects.get(curve_name)
-        curve_point = closest_curve_point(road_curve, crossing_point)
+        curve_point = closest_curve_point(road_curve, crossroad_point)
 
         # Find the closest handle of the curve point with respect to the crossing point
         left_handle = curve_point.handle_left + road_curve.location
         right_handle = curve_point.handle_right + road_curve.location
-        closest_handle = closest_point([left_handle, right_handle], crossing_point)
+        closest_handle = closest_point([left_handle, right_handle], crossroad_point)
 
         # Calculate the direction of the curve point and its handle as unit vector
         # for later calculation of the start/end point of the crossroad curve
@@ -229,10 +227,10 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: Vector, ray
     return curve_road_lane.ray_cast(origin, direction)
 
 
-def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):
+def crossing_curves(crossroad_point: bpy.types.Object, curves_number: int):
     curves = []
     for i in range(curves_number):
-        curve_name = crossing_point[f"Curve {i+1}"]
+        curve_name = crossroad_point[f"Curve {i+1}"]
 
         if curve_name:
             curve = bpy.data.objects.get(curve_name)
@@ -241,9 +239,9 @@ def crossing_curves(crossing_point: bpy.types.Object, curves_number: int):
     return curves
 
 
-def outer_bottom_vertices(curve: bpy.types.Object, crossing_point: bpy.types.Object):
+def outer_bottom_vertices(curve: bpy.types.Object, crossroad_point: bpy.types.Object):
     # Take the crossing point as the begin for the ray cast
-    ray_begin = crossing_point.location
+    ray_begin = crossroad_point.location
     # Set the height a little bit higher to guarantee a hit
     ray_begin.z = 0.05
 

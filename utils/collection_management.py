@@ -58,12 +58,15 @@ def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_colle
     collection.objects.link(mesh)
 
 
-def objects_from_collection(collection_name: str):
+def objects_from_collection(collection_name: str, subcollections: bool = False):
     collection = bpy.data.collections.get(collection_name)
 
     if collection:
         # Find all objects in the collection
-        objects = [obj for obj in collection.objects]
+        if subcollections:
+            objects = [obj for obj in collection.children]
+        else:
+            objects = [obj for obj in collection.objects if obj.parent is None]
         return objects
 
     return []

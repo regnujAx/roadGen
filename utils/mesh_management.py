@@ -207,6 +207,8 @@ def add_objects(curve: bpy.types.Object, side: str, object_template: bpy.types.O
 
             counter += 1
 
+    print(f"\t{counter} {object_template.name}s added")
+
 
 def apply_modifiers(mesh: bpy.types.Object):
     bpy.context.view_layer.objects.active = mesh
