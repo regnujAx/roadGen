@@ -1,7 +1,7 @@
 import bpy
 
 from .generators.road_net_generator import RG_RoadNetGenerator
-from .utils.collection_management import delete_collections_with_objects, hide_collections
+from .utils.collection_management import delete_collections_with_objects, switch_collections_visibility
 
 
 # ------------------------------------------------------------------------
@@ -21,7 +21,7 @@ class RG_CreateAll(bpy.types.Operator):
 
         collection_names = ["Crossing Points", "Crossroad Curves", "Line Meshes"]
 
-        hide_collections(collection_names)
+        switch_collections_visibility(collection_names)
 
         return {"FINISHED"}
 
@@ -33,9 +33,10 @@ class RG_DeleteAll(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        collection_names = ["Crossroad Curves", "Crossroads", "Kerbs", "Line Meshes", "Road Lanes", "Sidewalks"]
+        collection_names = ["Crossroad Curves", "Crossroads", "Kerbs", "Line Meshes", "Road Lanes", "Sidewalks", "Street Lamps"]
 
         delete_collections_with_objects(collection_names)
+        switch_collections_visibility(["Crossing Points"])
 
         return {"FINISHED"}
 
