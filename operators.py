@@ -1,7 +1,7 @@
 import bpy
 
-from .generators.road_net_generator import RG_RoadNetGenerator
-from .utils.collection_management import delete_collections_with_objects, switch_collections_visibility
+from roadGen.generators.road_net_generator import RG_RoadNetGenerator
+from roadGen.utils.collection_management import delete_collections_with_objects, switch_collections_visibility
 
 
 # ------------------------------------------------------------------------

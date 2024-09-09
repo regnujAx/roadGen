@@ -45,14 +45,12 @@ if dir not in sys.path:
     sys.path.append(dir)
 
 
-from . import operators
-from .generators import crossroad_generator, data_generator, geometry_generator, kerb_generator, road_generator, road_net_generator
-from .utils import collection_management, curve_management, mesh_management
+from roadGen.generators import crossroad_generator, data_generator, geometry_generator, kerb_generator, road_generator, road_net_generator
+from roadGen.utils import collection_management, curve_management, mesh_management
 
 reload(collection_management)
 reload(curve_management)
 reload(mesh_management)
-reload(operators)
 reload(crossroad_generator)
 reload(data_generator)
 reload(geometry_generator)
@@ -60,7 +58,7 @@ reload(kerb_generator)
 reload(road_generator)
 reload(road_net_generator)
 
-from .operators import RG_CreateAll, RG_DeleteAll
+from roadGen.operators import RG_CreateAll, RG_DeleteAll
 
 
 # ------------------------------------------------------------------------

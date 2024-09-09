@@ -1,8 +1,8 @@
 import bpy
 
-from .geometry_generator import RG_GeometryGenerator
-from ..road import RG_Road
-from ..utils.mesh_management import add_mesh_to_curve, apply_transform, curve_to_mesh
+from roadGen.generators.geometry_generator import RG_GeometryGenerator
+from roadGen.road import RG_Road
+from roadGen.utils.mesh_management import add_mesh_to_curve, apply_transform, curve_to_mesh
 
 
 class RG_RoadGenerator(RG_GeometryGenerator):

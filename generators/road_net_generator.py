@@ -1,14 +1,14 @@
 from time import time
 
-from .crossroad_generator import RG_CrossroadGenerator
-from .data_generator import RG_DataGenerator
-from .graph_to_net_generator import RG_GraphToNetGenerator
-from .kerb_generator import RG_KerbGenerator
-from .object_generator import RG_ObjectGenerator
-from .road_generator import RG_RoadGenerator
-from .sidewalk_generator import RG_SidewalkGenerator
-from ..utils.collection_management import crossing_points, objects_from_collection
-from ..utils.curve_management import visible_curves
+from roadGen.generators.crossroad_generator import RG_CrossroadGenerator
+from roadGen.generators.data_generator import RG_DataGenerator
+from roadGen.generators.graph_to_net_generator import RG_GraphToNetGenerator
+from roadGen.generators.kerb_generator import RG_KerbGenerator
+from roadGen.generators.object_generator import RG_ObjectGenerator
+from roadGen.generators.road_generator import RG_RoadGenerator
+from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
+from roadGen.utils.collection_management import crossing_points, objects_from_collection
+from roadGen.utils.curve_management import visible_curves
 
 
 class RG_RoadNetGenerator:

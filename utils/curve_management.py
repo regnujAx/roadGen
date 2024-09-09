@@ -3,7 +3,7 @@ import math
 
 from mathutils import Vector
 
-from .mesh_management import closest_curve_point
+from roadGen.utils.mesh_management import closest_curve_point
 
 
 def clockwise_angle(point: Vector, reference_vector: Vector):

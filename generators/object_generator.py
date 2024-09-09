@@ -1,7 +1,7 @@
 import bpy
 
-from ..road import RG_Road
-from ..utils.mesh_management import add_objects
+from roadGen.road import RG_Road
+from roadGen.utils.mesh_management import add_objects
 
 
 class RG_ObjectGenerator():

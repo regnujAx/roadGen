@@ -4,7 +4,7 @@ import math
 
 from mathutils import Vector
 
-from ..utils.curve_management import sort_curves
+from roadGen.utils.curve_management import sort_curves
 
 
 class RG_GraphToNetGenerator:

@@ -1,8 +1,8 @@
 import bpy
 
-from .geometry_generator import RG_GeometryGenerator
-from ..road import RG_Road
-from ..utils.mesh_management import add_line_following_mesh, add_mesh_to_curve, edit_mesh_at_positions
+from roadGen.generators.geometry_generator import RG_GeometryGenerator
+from roadGen.road import RG_Road
+from roadGen.utils.mesh_management import add_line_following_mesh, add_mesh_to_curve, edit_mesh_at_positions
 
 
 class RG_KerbGenerator(RG_GeometryGenerator):

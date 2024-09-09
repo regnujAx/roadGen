@@ -4,7 +4,7 @@ import math
 
 from mathutils import bvhtree, kdtree, Vector
 
-from .collection_management import link_to_collection
+from roadGen.utils.collection_management import link_to_collection
 
 
 def add_line_following_mesh(mesh_name: str):

@@ -3,11 +3,11 @@ import math
 
 from mathutils import Vector
 
-from .geometry_generator import RG_GeometryGenerator
-from .kerb_generator import RG_KerbGenerator
-from .sidewalk_generator import RG_SidewalkGenerator
-from ..utils.collection_management import objects_from_collection
-from ..utils.mesh_management import (
+from roadGen.generators.geometry_generator import RG_GeometryGenerator
+from roadGen.generators.kerb_generator import RG_KerbGenerator
+from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
+from roadGen.utils.collection_management import objects_from_collection
+from roadGen.utils.mesh_management import (
     closest_curve_point,
     closest_point,
     coplanar_faces,
