@@ -93,7 +93,7 @@ def add_mesh_to_curve(
     curve_length = curve.data.splines[0].calc_length()
     minimum_width = 2.0
     threshold = 0.001
-    x_dim = reduce_to_minimum(curve_length, minimum_width)
+    x_dim = calculate_optimal_distance(curve_length, minimum_width)
     mesh.dimensions[0] = x_dim + threshold
 
     # Apply the correct curve for the mesh modifiers
@@ -146,7 +146,7 @@ def add_objects(curve: bpy.types.Object, side: str, object_template: bpy.types.O
     bm_line.from_mesh(mesh_eval_data)
 
     total_length = line_mesh_length(bm_line)
-    distance = reduce_to_minimum(total_length, minimum_distance)
+    distance = calculate_optimal_distance(total_length, minimum_distance)
 
     correction_difference = 0
     counter = 0
@@ -416,12 +416,12 @@ def line_meshes(curve_name: str):
     return left_line_mesh, right_line_mesh
 
 
-def reduce_to_minimum(length: float, minimum: float):
-    # Multiply the minimum by 2 to get the next largest number
-    while length > minimum * 2:
-        length /= 2.0
+def calculate_optimal_distance(length: float, minimum: float):
+    number = length / minimum
+    rounded_number = round(number)
+    optimal_distance = length / rounded_number
 
-    return length
+    return optimal_distance
 
 
 def rotate_object(object: bpy.types.Object, reference_point: Vector):
