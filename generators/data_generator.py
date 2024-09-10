@@ -13,11 +13,11 @@ class RG_DataGenerator():
                 property_manager = curve.id_properties_ui("Lane Width")
                 property_manager.update(soft_min=1, soft_max=4, subtype="DISTANCE")
             if curve.get("Left Lanes") is None:
-                curve["Left Lanes"] = 1
+                curve["Left Lanes"] = 2 if curve.get("Major") else 1
                 property_manager = curve.id_properties_ui("Left Lanes")
                 property_manager.update(soft_min=1, soft_max=4)
             if curve.get("Right Lanes") is None:
-                curve["Right Lanes"] = 1
+                curve["Right Lanes"] = 2 if curve.get("Major") else 1
                 property_manager = curve.id_properties_ui("Right Lanes")
                 property_manager.update(soft_min=1, soft_max=4)
             if curve.get("Lamp Distance") is None:

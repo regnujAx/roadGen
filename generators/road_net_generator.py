@@ -12,14 +12,13 @@ from roadGen.utils.curve_management import visible_curves
 
 
 class RG_RoadNetGenerator:
-    def __init__(self, crossroad_offset: float = 0.0, graph=None):
-        self.crossroad_offset = crossroad_offset
+    def __init__(self, graph=None):
         self.graph = graph
 
     def generate(self):
         # Visualize the graph in Blender
         if self.graph:
-            graph_to_net_generator = RG_GraphToNetGenerator(self.crossroad_offset, self.graph)
+            graph_to_net_generator = RG_GraphToNetGenerator(self.graph)
             graph_to_net_generator.generate()
 
         curves = visible_curves()

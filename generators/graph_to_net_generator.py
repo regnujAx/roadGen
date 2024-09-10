@@ -8,12 +8,11 @@ from roadGen.utils.curve_management import sort_curves
 
 
 class RG_GraphToNetGenerator:
-    def __init__(self, crossroad_offset: float, graph):
-        self.crossroad_offset = crossroad_offset
+    def __init__(self, graph):
         self.graph = graph
 
     def generate(self):
-        visualize_curves(self.crossroad_offset, self.graph)
+        visualize_curves(self.graph)
         visualize_crossing_points(self.graph)
 
 
@@ -70,7 +69,7 @@ def visualize_crossing_points(graph):
             crossing_point["Number of Curves"] = str(len(sorted_curves))
 
 
-def visualize_curves(crossroad_offset: float, graph):
+def visualize_curves(graph):
     undirected_edges = [*graph.edges].copy()
     curves = {}
     try:
@@ -86,6 +85,8 @@ def visualize_curves(crossroad_offset: float, graph):
         bpy.context.scene.collection.children.link(curves_collection)
 
     index = 0
+    minimum_crossroad_size = 8.0
+
     for node in graph.nodes:
         for edge in node.edges:
             if edge in undirected_edges:
@@ -104,15 +105,19 @@ def visualize_curves(crossroad_offset: float, graph):
                 vec = last_point - first_point
                 distance = math.sqrt(sum(i**2 for i in vec))
 
+                # Increase the size of the crossroad if it is a major road
+                if edge.major:
+                    crossroad_size = minimum_crossroad_size + 2.0
+
                 # Skip edges that are too small
-                if distance < crossroad_offset * 2:
+                if distance < crossroad_size * 2:
                     continue
 
                 if len(edge_points) == 2:
                     # If there are only two points, we can simply adjust the points
                     unit_vec = vec / distance
-                    edge_points_copy[0] = first_point + unit_vec * crossroad_offset
-                    edge_points_copy[1] = last_point - unit_vec * crossroad_offset
+                    edge_points_copy[0] = first_point + unit_vec * crossroad_size
+                    edge_points_copy[1] = last_point - unit_vec * crossroad_size
                 else:
                     # If there are more than two points, we have to iterate from the begin and the end
                     # and check whether we need to remove points or can adjust them
@@ -126,7 +131,7 @@ def visualize_curves(crossroad_offset: float, graph):
                             vec = edge_point - point
                             distance = math.sqrt(sum(i**2 for i in vec))
 
-                            if distance < crossroad_offset:
+                            if distance < crossroad_size:
                                 previous_edge_point = edge_point
                                 # Remove the point if it is too close to begin/end point
                                 edge_points_copy.popleft() if x == 0 else edge_points_copy.pop()
@@ -134,7 +139,7 @@ def visualize_curves(crossroad_offset: float, graph):
                             else:
                                 # Add a new point with updated coordinates
                                 # when a point is reached that is far enough away from the begin/end point
-                                new_co = intersection_with_circle(previous_edge_point, edge_point, point, crossroad_offset)
+                                new_co = intersection_with_circle(previous_edge_point, edge_point, point, crossroad_size)
                                 edge_points_copy.appendleft(new_co) if x == 0 else edge_points_copy.append(new_co)
                                 break
 
@@ -158,6 +163,9 @@ def visualize_curves(crossroad_offset: float, graph):
                 obj.select_set(False)
 
                 curves[edge] = obj
+
+                if edge.major:
+                    obj["Major"] = True
 
             curve = curves.get(edge)
 
