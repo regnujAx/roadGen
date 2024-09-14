@@ -8,8 +8,8 @@ from roadGen.generators.data_generator import RG_DataGenerator
 from roadGen.generators.road_generator import RG_RoadGenerator
 from roadGen.generators.kerb_generator import RG_KerbGenerator
 from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
-from roadGen.generators.crossroad_generator import RG_CrossroadGenerator
-from roadGen.utils.collection_management import crossing_points, delete_collections_with_objects
+from roadGen.generators.crossroad_generator import RG_CrossroadGenerator, crossing_points
+from roadGen.utils.collection_management import delete_collections_with_objects
 from roadGen.utils.curve_management import visible_curves
 
 

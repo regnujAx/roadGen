@@ -4,8 +4,6 @@ import math
 from mathutils import Vector
 
 from roadGen.generators.geometry_generator import RG_GeometryGenerator
-from roadGen.generators.kerb_generator import RG_KerbGenerator
-from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
 from roadGen.utils.collection_management import objects_from_collection
 from roadGen.utils.mesh_management import (
     closest_curve_point,
@@ -18,21 +16,12 @@ from roadGen.utils.mesh_management import (
 
 
 class RG_CrossroadGenerator(RG_GeometryGenerator):
-    def __init__(self, kerb_generator: RG_KerbGenerator, sidewalk_generator: RG_SidewalkGenerator):
-        self.sidewalk_generator = sidewalk_generator
-        self.kerb_generator = kerb_generator
+    def __init__(self):
         self.crossroads = []
 
-    def add_geometry(self, crossroad_point: bpy.types.Object):
-        curves_number = crossroad_point.get("Number of Curves")
-
-        if curves_number:
-            curves_number = int(crossroad_point["Number of Curves"])
-
-            if curves_number > 1:
-                curves = crossing_curves(crossroad_point, curves_number)
-                crossroad = add_crossroad(curves, crossroad_point, self.kerb_generator, self.sidewalk_generator)
-                self.crossroads.append(crossroad)
+    def add_geometry(self, curves: list, crossroad_point: bpy.types.Object):
+        crossroad = add_crossroad(curves, crossroad_point)
+        self.crossroads.append(crossroad)
 
 
 # ------------------------------------------------------------------------
@@ -40,9 +29,7 @@ class RG_CrossroadGenerator(RG_GeometryGenerator):
 # ------------------------------------------------------------------------
 
 
-def add_crossroad(
-        curves: list, crossroad_point: bpy.types.Object,
-        kerb_generator: RG_KerbGenerator, sidewalk_generator: RG_SidewalkGenerator, height: float = 0.1):
+def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float = 0.1):
     road_vertices = {}
     vertices_to_remove = []
 
@@ -106,13 +93,8 @@ def add_crossroad(
         curve_1 = curves_list[position_1]
 
         if curve_0 != curve_1:
-            # Add a kerb between two different curves
-            add_crossroad_kerb([curve_0, curve_1], [vertex_0, vertex_1], crossroad_point.location, kerb_generator)
-
-            # Add a sidewalk between two different curves
-            crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_0}_{curve_1}")
-            if crossroad_curve:
-                sidewalk_generator.add_geometry(curve=crossroad_curve)
+            # Add a curve between two different curves
+            add_crossroad_curve([curve_0, curve_1], [vertex_0, vertex_1], crossroad_point.location)
 
             # Add all vertices of the created line mesh to the crossroad vertices
             line_mesh = bpy.data.objects.get(f"Line_Mesh_Crossroad_Curve_{curve_0}_{curve_1}")
@@ -155,7 +137,7 @@ def add_crossroad(
     return crossroad
 
 
-def add_crossroad_kerb(curve_names: list, points: list, crossroad_point: Vector, kerb_generator: RG_KerbGenerator):
+def add_crossroad_curve(curve_names: list, points: list, crossroad_point: Vector):  # , kerb_generator: RG_KerbGenerator):
     direction_unit_vectors = []
     for curve_name in curve_names:
         road_curve = bpy.data.objects.get(curve_name)
@@ -209,9 +191,6 @@ def add_crossroad_kerb(curve_names: list, points: list, crossroad_point: Vector,
     # Create a line mesh from the curve (needed for crossroad plane) and link it to its collection
     curve_to_mesh(curve)
 
-    # Add a kerb to the curve
-    kerb_generator.add_geometry(curve=curve)
-
 
 def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: Vector, ray_end: Vector):
     # Translate the begin and the end of the ray into local space of the road lane
@@ -227,16 +206,36 @@ def calculate_ray_cast(curve_road_lane: bpy.types.Object, ray_begin: Vector, ray
     return curve_road_lane.ray_cast(origin, direction)
 
 
-def crossing_curves(crossroad_point: bpy.types.Object, curves_number: int):
+def crossing_curves(crossroad_point: bpy.types.Object, crossroad: bool = False):
     curves = []
-    for i in range(curves_number):
-        curve_name = crossroad_point[f"Curve {i+1}"]
+    curves_number = crossroad_point.get("Number of Curves")
 
-        if curve_name:
-            curve = bpy.data.objects.get(curve_name)
-            curves.append(curve)
+    if curves_number:
+        curves_number = int(curves_number)
+
+        if curves_number > 1:
+            for i in range(curves_number):
+                if crossroad:
+                    if i < curves_number - 1:
+                        curve_name_1 = crossroad_point[f"Curve {i+1}"]
+                        curve_name_2 = crossroad_point[f"Curve {i+2}"]
+                    else:
+                        curve_name_1 = crossroad_point[f"Curve {i+1}"]
+                        curve_name_2 = crossroad_point["Curve 1"]
+                    curve_name = f"Crossroad_Curve_{curve_name_1}_{curve_name_2}"
+                else:
+                    curve_name = crossroad_point[f"Curve {i+1}"]
+                curve = bpy.data.objects.get(curve_name)
+
+                if curve:
+                    curves.append(curve)
 
     return curves
+
+
+def crossing_points():
+    markers = objects_from_collection("Crossing Points")
+    return [marker for marker in markers if marker.visible_get()]
 
 
 def outer_bottom_vertices(curve: bpy.types.Object, crossroad_point: bpy.types.Object):

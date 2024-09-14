@@ -136,7 +136,7 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     return object_copy
 
 
-def add_objects(curve: bpy.types.Object, side: str, object_template: bpy.types.Object, minimum_distance: float, offset: float):
+def add_objects(object_template: bpy.types.Object, curve: bpy.types.Object, side: str, minimum_distance: float, offset: float):
     line_mesh = bpy.data.objects.get("Line_Mesh_Kerb_" + side + "_" + curve.name)
     m = line_mesh.matrix_world
 
@@ -153,59 +153,85 @@ def add_objects(curve: bpy.types.Object, side: str, object_template: bpy.types.O
     length = 0
     position = None
 
-    # Iterate over all line mesh edges to find the positions to add the objects
-    for edge in bm_line.edges:
-        edge_length = edge.calc_length()
-        length += edge_length
+    if "Traffic Light" in object_template.name:
+        bm_line.edges.ensure_lookup_table()
+        edge = bm_line.edges[0] if side == "Left" else bm_line.edges[-1]
+        v0 = edge.verts[0].co
+        v1 = edge.verts[1].co
+        vec = v1 - v0
+        position = m @ v1
 
-        corrected_length = length - correction_difference
-        current_distance = distance * counter
+        # Define a not parallel vector to get a correct orthogonal vector
+        if vec[0] != 0 or vec[2] != 0:
+            a = Vector((0, 0, 1))
+        else:
+            a = Vector((1, 0, 0))
 
-        # Calculate the position on the line mesh when the distance is big enough
-        if corrected_length <= total_length and corrected_length >= current_distance:
-            v0 = edge.verts[0].co
-            v1 = edge.verts[1].co
-            vec = v1 - v0
-            unit_vec = vec / edge_length
+        # Calculate the cross product and its length to find an orthogonal vector
+        cross = a.cross(vec)
+        cross_length = math.sqrt(sum(i**2 for i in cross))
+        orthogonal_vec = cross / cross_length
 
-            if counter == 0:
-                # Use no difference for the first position, because we only use the first vertex for this
-                # and not the second vertex
-                difference = 0
-                vertex = v0
-            else:
-                difference = corrected_length - current_distance
-                vertex = v1
+        # Shift this orthogonal vector by an offset and the found position
+        shifted_position = position + orthogonal_vec * (offset / 4)
 
-                # Add the difference to the current length for more precise finding of further positions
-                length += difference
+        # Add an object at the shifted position and rotate it
+        object = add_object_at_position(object_template, shifted_position)
+        rotate_object(object, position)
+    else:
+        # Iterate over all line mesh edges to find the positions to add the objects
+        for edge in bm_line.edges:
+            edge_length = edge.calc_length()
+            length += edge_length
 
-                # Note the difference for correction of further positions
-                correction_difference += difference
+            corrected_length = length - correction_difference
+            current_distance = distance * counter
 
-            # Calculate the accurate point between the two line mesh vertices
-            position = vertex - unit_vec * difference
-            position = m @ position
+            # Calculate the position on the line mesh when the distance is big enough
+            if corrected_length <= total_length and corrected_length >= current_distance:
+                v0 = edge.verts[0].co
+                v1 = edge.verts[1].co
+                vec = v1 - v0
+                unit_vec = vec / edge_length
 
-            # Define a not parallel vector to get a correct orthogonal vector
-            if vec[0] != 0 or vec[2] != 0:
-                a = Vector((0, 0, 1))
-            else:
-                a = Vector((1, 0, 0))
+                if counter == 0:
+                    # Use no difference for the first position, because we only use the first vertex for this
+                    # and not the second vertex
+                    difference = 0
+                    vertex = v0
+                else:
+                    difference = corrected_length - current_distance
+                    vertex = v1
 
-            # Calculate the cross product and its length to find an orthogonal vector
-            cross = a.cross(vec)
-            cross_length = math.sqrt(sum(i**2 for i in cross))
-            orthogonal_vec = cross / cross_length
+                    # Add the difference to the current length for more precise finding of further positions
+                    length += difference
 
-            # Shift this vector by an offset and the found position
-            shifted_position = position + orthogonal_vec * offset
+                    # Note the difference for correction of further positions
+                    correction_difference += difference
 
-            # Add an object at the shifted position and rotate it
-            object = add_object_at_position(object_template, shifted_position)
-            rotate_object(object, position)
+                # Calculate the accurate point between the two line mesh vertices
+                position = vertex - unit_vec * difference
+                position = m @ position
 
-            counter += 1
+                # Define a not parallel vector to get a correct orthogonal vector
+                if vec[0] != 0 or vec[2] != 0:
+                    a = Vector((0, 0, 1))
+                else:
+                    a = Vector((1, 0, 0))
+
+                # Calculate the cross product and its length to find an orthogonal vector
+                cross = a.cross(vec)
+                cross_length = math.sqrt(sum(i**2 for i in cross))
+                orthogonal_vec = cross / cross_length
+
+                # Shift this orthogonal vector by an offset and the found position
+                shifted_position = position + orthogonal_vec * offset
+
+                # Add an object at the shifted position and rotate it
+                object = add_object_at_position(object_template, shifted_position)
+                rotate_object(object, position)
+
+                counter += 1
 
     print(f"\t{counter} {object_template.name}s added")
 
@@ -425,9 +451,28 @@ def calculate_optimal_distance(length: float, minimum: float):
 
 
 def rotate_object(object: bpy.types.Object, reference_point: Vector):
-    # Get the vector between the object and one of its children
-    child = object.children[1]
-    vec = child.matrix_world.to_translation() - object.location
+    furthest_child_location = None
+    object_location = object.location
+    object_location.z = 0.0
+    distance = 0.0
+
+    for child in object.children:
+        child_m = child.matrix_world
+        child_location = child.matrix_world.to_translation()
+        child_location.z = 0.0
+
+        if child_location != object_location:
+            for vertex in child.data.vertices:
+                v = child_m @ vertex.co
+                v.z = 0.0
+                vec = v - object_location
+                dist = math.sqrt(sum(i ** 2 for i in vec))
+
+                if dist > distance:
+                    distance = dist
+                    furthest_child_location = child_location
+
+    vec = furthest_child_location - object_location
     vec.z = 0.0
 
     # Get the reference vector between the object and the reference point
@@ -436,7 +481,7 @@ def rotate_object(object: bpy.types.Object, reference_point: Vector):
     # Calculate the dot product of the two vectors and their lengths
     dot_product = vec.dot(reference_vec)
     length_vec = math.sqrt(sum(a ** 2 for a in vec))
-    length_reference_vector = math.sqrt(sum(a ** 2 for a in reference_vec))
+    length_reference_vector = math.sqrt(sum(i ** 2 for i in reference_vec))
 
     # Calculate the angle between the two vectors
     cos_theta = dot_product / (length_vec * length_reference_vector)

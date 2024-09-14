@@ -5,7 +5,8 @@ from mathutils import Vector
 
 from roadGen.generators.geometry_generator import RG_GeometryGenerator
 from roadGen.road import RG_Road
-from roadGen.utils.collection_management import first_and_last_objects_from_collections, link_to_collection, objects_from_collection
+from roadGen.utils.collection_management import (
+    first_and_last_objects_from_collections, link_to_collection, objects_from_collection)
 from roadGen.utils.mesh_management import (
     add_mesh_to_curve,
     apply_modifiers,
