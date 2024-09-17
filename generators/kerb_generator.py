@@ -21,7 +21,7 @@ class RG_KerbGenerator(RG_GeometryGenerator):
                 road.kerb_mesh_template = self.mesh_template
 
             # Add a kerb for a road
-            index = road.left_lanes if side == "Left" else -road.right_lanes
+            index = -road.left_lanes if side == "Left" else road.right_lanes
             mesh = add_mesh_to_curve(self.mesh_template, road.curve, f"Kerb_{side}", road.lane_width, index)
 
             road.kerbs.append(mesh)

@@ -1,14 +1,59 @@
 import bpy
 
 
+def count_empty_objects_in_collection(collection):
+    counter = 0
+
+    for obj in collection.objects:
+        if obj.type == 'EMPTY':
+            counter += 1
+
+    for subcollection in collection.children:
+        counter += count_empty_objects_in_collection(subcollection)
+
+    return counter
+
+
+def count_objects_in_collection(collection: bpy.types.Collection, with_subcollections: bool):
+    counter = len(collection.objects)
+
+    for subcollection in collection.children:
+        counter += count_objects_in_collection(subcollection, with_subcollections) if with_subcollections else 1
+
+    return counter
+
+
+def count_objects_in_collections(collection_names: list, with_subcollections: bool = True, emptys: bool = False):
+    counter = 0
+
+    for collection_name in collection_names:
+        collection = bpy.data.collections.get(collection_name)
+
+        if collection:
+            if emptys:
+                counter += count_empty_objects_in_collection(collection)
+            else:
+                counter += count_objects_in_collection(collection, with_subcollections)
+
+    return counter
+
+
+def delete_collection_and_subcollections(collection):
+    for subcollection in collection.children:
+        delete_collection_and_subcollections(subcollection)
+
+    for obj in collection.objects:
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+    bpy.data.collections.remove(collection)
+
+
 def delete_collections_with_objects(collection_names: list):
     for collection_name in collection_names:
-        objects = objects_from_collection(collection_name)
+        collection = bpy.data.collections.get(collection_name)
 
-        while objects:
-            bpy.data.objects.remove(objects.pop())
-
-        remove_collection(collection_name)
+        if collection:
+            delete_collection_and_subcollections(collection)
 
 
 def first_and_last_objects_from_collections(collection_names: list, number_of_objects: int):
@@ -53,13 +98,6 @@ def objects_from_collection(collection_name: str, subcollections: bool = False):
         return objects
 
     return []
-
-
-def remove_collection(collection_name: str):
-    collection = bpy.data.collections.get(collection_name)
-
-    if collection:
-        bpy.data.collections.remove(collection)
 
 
 def switch_collection_visibility(collection_name: str):

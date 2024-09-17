@@ -7,7 +7,7 @@ from roadGen.generators.kerb_generator import RG_KerbGenerator
 from roadGen.generators.object_generator import RG_ObjectGenerator
 from roadGen.generators.road_generator import RG_RoadGenerator
 from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
-from roadGen.utils.collection_management import objects_from_collection
+from roadGen.utils.collection_management import count_objects_in_collections
 from roadGen.utils.curve_management import visible_curves
 
 
@@ -58,7 +58,7 @@ class RG_RoadNetGenerator:
         add_geometry_and_measure_time(sidewalk_generator, roads, "sidewalk")
 
         # Visualize objects in Blender
-        object_generator = RG_ObjectGenerator(["Street Lamp"])
+        object_generator = RG_ObjectGenerator(["Street Lamp", "Traffic Light"])
         add_geometry_and_measure_time(object_generator, roads, "object")
 
         # Visualize crossroads in Blender
@@ -104,15 +104,15 @@ def add_geometry_and_measure_time(generator, roads: list, geometry_type: str):
         if counter % 10 == 0 and geometry_type != "object":
             print(f"\t{counter} {geometry_type}s added")
 
-    generated_objects_number = 0
-    subcollections = True if geometry_type == "sidewalk" else False
+    with_subcollections = False if geometry_type == "sidewalk" else True
 
-    if isinstance(generator, RG_ObjectGenerator):
-        for object_name in generator.object_templates:
-            objects = objects_from_collection(f"{object_name}s", subcollections)
-            generated_objects_number += len(objects)
+    if geometry_type == "object":
+        collection_names = [object_name + "s" for object_name in generator.object_names]
+        emptys = True
     else:
-        objects = objects_from_collection(f"{generator.mesh_template.name}s", subcollections)
-        generated_objects_number += len(objects)
+        collection_names = [f"{generator.mesh_template.name}s"]
+        emptys = False
+
+    generated_objects_number = count_objects_in_collections(collection_names, with_subcollections, emptys)
 
     print(f"{geometry_type.title()} generation ({generated_objects_number} in total) completed in {time() - t:.2f}s")

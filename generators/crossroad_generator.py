@@ -1,5 +1,4 @@
 import bpy
-import math
 
 from mathutils import Vector
 
@@ -151,11 +150,10 @@ def add_crossroad_curve(curve_names: list, points: list, crossroad_point: Vector
         # Calculate the direction of the curve point and its handle as unit vector
         # for later calculation of the start/end point of the crossroad curve
         direction = closest_handle - (curve_point.co + road_curve.location)
-        length = math.sqrt(sum(i**2 for i in direction))
-        unit_vec = direction / length
+        direction.normalize()
 
-        # Append the unit vector to the list
-        direction_unit_vectors.append(unit_vec)
+        # Append the normalized direction vector to the list
+        direction_unit_vectors.append(direction)
 
     # Create a new curve and change its curve type to 3D and increase its resolution
     crv = bpy.data.curves.new("curve", 'CURVE')
@@ -174,12 +172,11 @@ def add_crossroad_curve(curve_names: list, points: list, crossroad_point: Vector
 
     # Calculate the distance between the kerb points
     vector = points[1] - points[0]
-    distance = math.sqrt(sum(i**2 for i in vector))
 
     for i in range(len(spline.bezier_points)):
-        # Use the calculated distance to obtain an offset dependent on the kerbs in direction of its road curve
+        # Use the vector length to obtain an offset dependent on the kerbs in direction of its road curve
         # and add it to the point
-        new_co = points[i] + distance / 2 * direction_unit_vectors[i]
+        new_co = points[i] + vector.length / 2 * direction_unit_vectors[i]
         # Set both bezier point handles to the new coordinate
         crv.splines[0].bezier_points[i].handle_left = new_co
         crv.splines[0].bezier_points[i].handle_right = new_co

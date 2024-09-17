@@ -8,7 +8,7 @@ class RG_DataGenerator():
     def create_road_data(self):
         for curve in self.curves:
             if curve.get("Lane Width") is None:
-                curve["Lane Width"] = 2.50
+                curve["Lane Width"] = 3.50
                 # Edit the property
                 property_manager = curve.id_properties_ui("Lane Width")
                 property_manager.update(soft_min=1, soft_max=4, subtype="DISTANCE")

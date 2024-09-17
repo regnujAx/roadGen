@@ -1,5 +1,4 @@
 import bpy
-import math
 
 from mathutils import Vector
 
@@ -37,7 +36,7 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
             curve = road.curve
             kerb_mesh_name = "Kerb_" + side + "_" + road.curve.name
 
-            index = road.left_lanes if side == "Left" else -road.right_lanes
+            index = -road.left_lanes if side == "Left" else road.right_lanes
             mesh = add_mesh_to_curve(
                 self.mesh_template, road.curve, f"Sidewalk_{side}", road.lane_width, index, self.offset)
 
@@ -132,16 +131,14 @@ def drop_sidewalk(mesh: bpy.types.Object, kerb_mesh_name: str, drop_depth: float
         # Calculate the distances between the two pairs of vertices
         vector_1 = vertex_2 - vertex_1
         vector_2 = vertex_3 - vertex_1
-        distance_1 = math.sqrt(sum(i**2 for i in vector_1))
-        distance_2 = math.sqrt(sum(i**2 for i in vector_2))
 
         # Only use the current vertex if its distance to the other two vertices is large enough
         distance_threshold = 0.15
-        if distance_1 >= distance_threshold and distance_2 >= distance_threshold:
+        if vector_1.length >= distance_threshold and vector_2.length >= distance_threshold:
             filtered_dropped_vertices.append(vertex_1)
 
         # Add also a vertex for the last pair of vertices (the last is sufficient)
-        if i == num - 3 and distance_2 >= distance_threshold:
+        if i == num - 3 and vector_2.length >= distance_threshold:
             filtered_dropped_vertices.append(vertex_3)
 
     mesh_vertices = [vertex.co for vertex in mesh.data.vertices]

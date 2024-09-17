@@ -1,5 +1,4 @@
 import bpy
-import math
 
 from mathutils import Vector
 
@@ -24,10 +23,8 @@ def sort_curves(curves: list, reference_point: Vector):
     # Calculate the clockwise angle for each direction vector (the first direction vector is the origin/start)
     for vector in direction_vectors:
         vector[1].resize_2d()
-        v = vector[1] - reference_vector
-        length = math.sqrt(sum(i**2 for i in v))
-
-        angle = reference_vector.angle_signed(v) if length != 0 else 0.0
+        vec = vector[1] - reference_vector
+        angle = reference_vector.angle_signed(vec) if vec.length != 0 else 0.0
         angles.append(angle)
 
     # Check whether the lines cross straight and swap the order (set one angle to -1) if they do

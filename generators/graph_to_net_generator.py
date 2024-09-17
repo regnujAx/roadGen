@@ -85,7 +85,7 @@ def visualize_curves(graph):
         bpy.context.scene.collection.children.link(curves_collection)
 
     index = 0
-    minimum_crossroad_size = 8.0
+    minimum_crossroad_size = 10.0
 
     for node in graph.nodes:
         for edge in node.edges:
@@ -101,26 +101,24 @@ def visualize_curves(graph):
 
                 first_point = edge_points[0].to_3d()
                 last_point = edge_points[-1].to_3d()
-
                 vec = last_point - first_point
-                distance = math.sqrt(sum(i**2 for i in vec))
 
                 # Increase the size of the crossroad if it is a major road
                 if edge.major:
-                    crossroad_size = minimum_crossroad_size + 2.0
+                    crossroad_size = minimum_crossroad_size + 4.0
 
                 # Skip edges that are too small
-                if distance < crossroad_size * 2:
+                if vec.length < crossroad_size * 2:
                     continue
 
                 if len(edge_points) == 2:
                     # If there are only two points, we can simply adjust the points
-                    unit_vec = vec / distance
-                    edge_points_copy[0] = first_point + unit_vec * crossroad_size
-                    edge_points_copy[1] = last_point - unit_vec * crossroad_size
+                    vec.normalize()
+                    edge_points_copy[0] = first_point + vec * crossroad_size
+                    edge_points_copy[1] = last_point - vec * crossroad_size
                 else:
-                    # If there are more than two points, we have to iterate from the begin and the end
-                    # and check whether we need to remove points or can adjust them
+                    # If there are more than two points, we have to iterate from the begin and from the end
+                    # and check whether we need to remove points or we can adjust them
                     for x in range(2):
                         point = first_point if x == 0 else last_point
                         previous_edge_point = point
@@ -129,9 +127,8 @@ def visualize_curves(graph):
                             idx = i if x == 0 else -i - 1
                             edge_point = edge_points[idx].to_3d()
                             vec = edge_point - point
-                            distance = math.sqrt(sum(i**2 for i in vec))
 
-                            if distance < crossroad_size:
+                            if vec.length < crossroad_size:
                                 previous_edge_point = edge_point
                                 # Remove the point if it is too close to begin/end point
                                 edge_points_copy.popleft() if x == 0 else edge_points_copy.pop()

@@ -77,8 +77,8 @@ def add_mesh_to_curve(
     elif "Kerb" in name:
         collection_name = "Kerbs"
         # Calculate an offset for the y-coordinate depending on the lane width, index and side of the kerb (right:neg, left:pos)
-        sign = -1 if index < 0 else 1
-        y = lane_width * index + sign * mesh.dimensions[1] / 2
+        sign = 1 if index < 0 else -1
+        y = lane_width * index - sign * mesh.dimensions[1] / 2
         # Keep its original z-location for the kerb
         z = mesh.location[2]
     elif "Sidewalk" in name:
@@ -113,8 +113,16 @@ def add_mesh_to_curve(
 def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     # Create a copy of the template and link it to its collection
     object_copy = object_template.copy()
-    collection_name = object_template.name + "s"
-    link_to_collection(object_copy, collection_name)
+    child_collection_name = None
+    collection_name = object_template.name
+
+    if "Traffic Light" in collection_name:
+        child_collection_name = collection_name + "s"
+        collection_name = "Traffic Lights"
+    else:
+        collection_name = collection_name + "s"
+
+    link_to_collection(object_copy, collection_name, child_collection_name)
 
     # Hide the copy if it is an empty object
     if object_copy.type == 'EMPTY':
@@ -125,7 +133,11 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
         child_copy = child.copy()
         child_copy.parent = object_copy
         child_copy.matrix_parent_inverse = child.matrix_parent_inverse
-        link_to_collection(child_copy, collection_name)
+
+        if "Traffic Light" in collection_name:
+            link_to_collection(child_copy, child_collection_name)
+        else:
+            link_to_collection(child_copy, collection_name)
 
     # Update the location of the object copy
     object_copy.location = position
@@ -136,7 +148,7 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     return object_copy
 
 
-def add_objects(object_template: bpy.types.Object, curve: bpy.types.Object, side: str, minimum_distance: float, offset: float):
+def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, minimum_distance: float, offset: float):
     line_mesh = bpy.data.objects.get("Line_Mesh_Kerb_" + side + "_" + curve.name)
     m = line_mesh.matrix_world
 
@@ -147,38 +159,50 @@ def add_objects(object_template: bpy.types.Object, curve: bpy.types.Object, side
 
     total_length = line_mesh_length(bm_line)
     distance = calculate_optimal_distance(total_length, minimum_distance)
+    sections = round(total_length / distance)
 
     correction_difference = 0
     counter = 0
     length = 0
     position = None
 
-    if "Traffic Light" in object_template.name:
+    if "Traffic Light" in object_name:
         bm_line.edges.ensure_lookup_table()
-        edge = bm_line.edges[0] if side == "Left" else bm_line.edges[-1]
+        edge = bm_line.edges[-1] if side == "Left" else bm_line.edges[0]
         v0 = edge.verts[0].co
         v1 = edge.verts[1].co
         vec = v1 - v0
-        position = m @ v1
 
-        # Define a not parallel vector to get a correct orthogonal vector
-        if vec[0] != 0 or vec[2] != 0:
-            a = Vector((0, 0, 1))
-        else:
-            a = Vector((1, 0, 0))
+        # Calculate the accurate point between the two line mesh vertices
+        vert = v1 if side == "Left" else v0
+        position = m @ vert
 
-        # Calculate the cross product and its length to find an orthogonal vector
-        cross = a.cross(vec)
-        cross_length = math.sqrt(sum(i**2 for i in cross))
-        orthogonal_vec = cross / cross_length
+        # Find an orthogonal vector to determine the direction for shifting/moving the object
+        orthogonal_vec = orthogonal_vector(vec)
 
         # Shift this orthogonal vector by an offset and the found position
-        shifted_position = position + orthogonal_vec * (offset / 4)
+        shifted_position = position + orthogonal_vec * offset / 4
+        lanes_number = curve[f"{side} Lanes"]
 
-        # Add an object at the shifted position and rotate it
-        object = add_object_at_position(object_template, shifted_position)
-        rotate_object(object, position)
+        object_template_name = object_name + f" {lanes_number}"
+        object_template = bpy.data.objects.get(object_template_name)
+        if object_template:
+            # Add an object at the shifted position and rotate it
+            object = add_object_at_position(object_template, shifted_position)
+
+            if lanes_number == 1:
+                if side == "Left":
+                    vec *= -1
+                rotate_object(object, position, vec)
+            else:
+                rotate_object(object, position)
+
+            counter += 1
+        else:
+            print(f"The object with the name {object_name} cannot be found. "
+                  "Check whether the object you want to add exists.")
     else:
+        object_template = bpy.data.objects.get(object_name)
         # Iterate over all line mesh edges to find the positions to add the objects
         for edge in bm_line.edges:
             edge_length = edge.calc_length()
@@ -187,8 +211,10 @@ def add_objects(object_template: bpy.types.Object, curve: bpy.types.Object, side
             corrected_length = length - correction_difference
             current_distance = distance * counter
 
-            # Calculate the position on the line mesh when the distance is big enough
-            if corrected_length <= total_length and corrected_length >= current_distance:
+            # Calculate the position on the line mesh when the distance is big enough or when the last object is reached
+            # (round corrected_length and current_distance to avoid floating point issues)
+            if ((corrected_length <= total_length and corrected_length >= current_distance)
+                    or (counter == sections and round(corrected_length, 10) == round(current_distance, 10))):
                 v0 = edge.verts[0].co
                 v1 = edge.verts[1].co
                 vec = v1 - v0
@@ -213,16 +239,8 @@ def add_objects(object_template: bpy.types.Object, curve: bpy.types.Object, side
                 position = vertex - unit_vec * difference
                 position = m @ position
 
-                # Define a not parallel vector to get a correct orthogonal vector
-                if vec[0] != 0 or vec[2] != 0:
-                    a = Vector((0, 0, 1))
-                else:
-                    a = Vector((1, 0, 0))
-
-                # Calculate the cross product and its length to find an orthogonal vector
-                cross = a.cross(vec)
-                cross_length = math.sqrt(sum(i**2 for i in cross))
-                orthogonal_vec = cross / cross_length
+                # Find an orthogonal vector to determine the direction for shifting/moving the object
+                orthogonal_vec = orthogonal_vector(vec)
 
                 # Shift this orthogonal vector by an offset and the found position
                 shifted_position = position + orthogonal_vec * offset
@@ -250,6 +268,12 @@ def apply_transform(
     object.select_set(False)
 
 
+def calculate_optimal_distance(length: float, minimum: float):
+    number = length // minimum
+
+    return length if number == 0 else length / number
+
+
 def closest_curve_point(curve: bpy.types.Object, reference_point: Vector):
     # Get the curve end points in world space
     m = curve.matrix_world
@@ -269,11 +293,9 @@ def closest_point(points: list, reference_point: Vector):
     for i in range(len(points) - 1):
         point = points[i+1]
         vector_1 = closest_point - reference_point
-        distance_1 = math.sqrt(sum(i**2 for i in vector_1))
         vector_2 = point - reference_point
-        distance_2 = math.sqrt(sum(i**2 for i in vector_2))
 
-        if distance_2 < distance_1:
+        if vector_2.length < vector_1.length:
             closest_point = point
 
     return closest_point
@@ -442,55 +464,81 @@ def line_meshes(curve_name: str):
     return left_line_mesh, right_line_mesh
 
 
-def calculate_optimal_distance(length: float, minimum: float):
-    number = length / minimum
-    rounded_number = round(number)
-    optimal_distance = length / rounded_number
+def orthogonal_vector(vector: Vector):
+    # Define a not parallel vector to get a correct orthogonal vector
+    if vector[0] != 0 or vector[2] != 0:
+        not_parallel_vec = Vector((0, 0, 1))
+    else:
+        not_parallel_vec = Vector((1, 0, 0))
 
-    return optimal_distance
+    # Calculate the cross product to find an orthogonal vector and normalize it
+    cross = not_parallel_vec.cross(vector)
+    cross.normalize()
+
+    return cross
 
 
-def rotate_object(object: bpy.types.Object, reference_point: Vector):
+def rotate_object(object: bpy.types.Object, reference_point: Vector, reference_direction: Vector = None):
     furthest_child_location = None
-    object_location = object.location
-    object_location.z = 0.0
-    distance = 0.0
+    max_distance = 0.0
+    object_location = object.matrix_world.translation
 
-    for child in object.children:
-        child_m = child.matrix_world
-        child_location = child.matrix_world.to_translation()
-        child_location.z = 0.0
+    # Rotate a the object in a different way if a reference direction is passed
+    if reference_direction:
+        reference_direction.normalize()
 
-        if child_location != object_location:
-            for vertex in child.data.vertices:
-                v = child_m @ vertex.co
-                v.z = 0.0
-                vec = v - object_location
-                dist = math.sqrt(sum(i ** 2 for i in vec))
+        # Find the furthest child object from the original location of the object
+        for child in object.children:
+            child_global_location = child.matrix_world.translation
+            distance = (child_global_location - object_location).length
 
-                if dist > distance:
-                    distance = dist
-                    furthest_child_location = child_location
+            if distance > max_distance:
+                max_distance = distance
+                furthest_child_location = child_global_location
 
-    vec = furthest_child_location - object_location
-    vec.z = 0.0
+        # Get the direction from the object to its child, shifted to the reference point (for the later angle calculation),
+        # as the object has a different position than the reference point, but for the angle calculation between two vectors,
+        # both must have the same starting point
+        shift = reference_point - object_location
+        shifted_location = furthest_child_location + shift
+        direction = shifted_location - reference_point
+        direction.z = 0.0
+        direction.normalize()
+    else:
+        # Find the furthest vertex of all children and remember the corresponding child location
+        for child in object.children:
+            if child.type == 'MESH':
+                vertices = child.data.vertices
 
-    # Get the reference vector between the object and the reference point
-    reference_vec = reference_point - object.location
+                for vertex in vertices:
+                    global_vertex_pos = child.matrix_world @ vertex.co
+                    global_vertex_pos.z = 0.0
+
+                    distance = (global_vertex_pos - object_location).length
+                    if distance > max_distance:
+                        max_distance = distance
+                        furthest_child_location = child.matrix_world.translation
+
+        # Get the direction from the object to this furthest child
+        direction = furthest_child_location - object_location
+        direction.z = 0.0
+        direction.normalize()
+
+        # Get the reference vector between the object and the reference point
+        reference_direction = reference_point - object_location
+        reference_direction.normalize()
 
     # Calculate the dot product of the two vectors and their lengths
-    dot_product = vec.dot(reference_vec)
-    length_vec = math.sqrt(sum(a ** 2 for a in vec))
-    length_reference_vector = math.sqrt(sum(i ** 2 for i in reference_vec))
+    dot_product = direction.dot(reference_direction)
 
     # Calculate the angle between the two vectors
-    cos_theta = dot_product / (length_vec * length_reference_vector)
-    angle_radian = math.acos(cos_theta)
+    angle_radian = math.acos(dot_product)
 
-    # Calculate the cross product of the two vectors to check whether the reference vector is clockwise to the other vector,
-    # i.e. whether the angle between them is greater than 180°
-    cross = vec.cross(reference_vec)
+    # Calculate the cross product of the two vectors to check whether the angle between them (in radians)
+    # is positive (counter-clockwise) or negative (clockwise)
+    cross = direction.cross(reference_direction)
 
+    # If the z-coordinate of the cross is negative, we need switch the rotation direction to get the correct angle
     if cross[2] < 0:
         angle_radian = 2 * math.pi - angle_radian
 

@@ -53,7 +53,7 @@ def add_road_lanes(road: RG_Road):
 
             for i in range(lane_number):
                 template = road_lane_mesh_template_outside if i == lane_number - 1 else road_lane_mesh_template_inside
-                index = i + 1 if side == "Left" else -i
+                index = -i if side == "Left" else i + 1
                 mesh = add_mesh_to_curve(template, road.curve, f"Road_Lane_{side}", road.lane_width, index)
 
                 if side == "Left":
