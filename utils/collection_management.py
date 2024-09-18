@@ -66,6 +66,18 @@ def first_and_last_objects_from_collections(collection_names: list, number_of_ob
     return objects
 
 
+def objects_from_subcollections_in_collection_by_name(collection_name: str, filter_name: str):
+    objects = []
+    collection = bpy.data.collections.get(collection_name)
+
+    if collection:
+        for subcollection in collection.children:
+            if filter_name in subcollection.name:
+                objects.extend([obj for obj in subcollection.objects if filter_name in obj.name])
+
+    return objects
+
+
 def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_collection_name: str = None):
     collection = bpy.data.collections.get(collection_name)
 

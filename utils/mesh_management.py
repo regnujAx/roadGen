@@ -1,10 +1,11 @@
 import bmesh
 import bpy
 import math
+import random
 
 from mathutils import bvhtree, kdtree, Vector
 
-from roadGen.utils.collection_management import link_to_collection
+from roadGen.utils.collection_management import link_to_collection, objects_from_subcollections_in_collection_by_name
 
 
 def add_line_following_mesh(mesh_name: str):
@@ -117,8 +118,12 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     collection_name = object_template.name
 
     if "Traffic Light" in collection_name:
+        # Add an 's' to the collection name to make it different to the template
         child_collection_name = collection_name + "s"
         collection_name = "Traffic Lights"
+    elif "Traffic Sign" in collection_name:
+        child_collection_name = collection_name + "s"
+        collection_name = "Traffic Signs"
     else:
         collection_name = collection_name + "s"
 
@@ -134,7 +139,7 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
         child_copy.parent = object_copy
         child_copy.matrix_parent_inverse = child.matrix_parent_inverse
 
-        if "Traffic Light" in collection_name:
+        if "Traffic Light" in collection_name or "Traffic Sign" in collection_name:
             link_to_collection(child_copy, child_collection_name)
         else:
             link_to_collection(child_copy, collection_name)
@@ -157,14 +162,9 @@ def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, m
     bm_line = bmesh.new()
     bm_line.from_mesh(mesh_eval_data)
 
-    total_length = line_mesh_length(bm_line)
-    distance = calculate_optimal_distance(total_length, minimum_distance)
-    sections = round(total_length / distance)
-
-    correction_difference = 0
     counter = 0
-    length = 0
     position = None
+    reference_direction = None
 
     if "Traffic Light" in object_name:
         bm_line.edges.ensure_lookup_table()
@@ -180,8 +180,11 @@ def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, m
         # Find an orthogonal vector to determine the direction for shifting/moving the object
         orthogonal_vec = orthogonal_vector(vec)
 
+        # Adjust the position offset for traffic lights
+        offset /= 4
+
         # Shift this orthogonal vector by an offset and the found position
-        shifted_position = position + orthogonal_vec * offset / 4
+        shifted_position = position + orthogonal_vec * offset
         lanes_number = curve[f"{side} Lanes"]
 
         object_template_name = object_name + f" {lanes_number}"
@@ -191,25 +194,56 @@ def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, m
             object = add_object_at_position(object_template, shifted_position)
 
             if lanes_number == 1:
-                if side == "Left":
-                    vec *= -1
-                rotate_object(object, position, vec)
-            else:
-                rotate_object(object, position)
+                reference_direction = -vec if side == "Left" else vec
+
+            rotate_object(object, position, reference_direction)
 
             counter += 1
         else:
             print(f"The object with the name {object_name} cannot be found. "
                   "Check whether the object you want to add exists.")
     else:
-        object_template = bpy.data.objects.get(object_name)
+        total_length = line_mesh_length(bm_line)
+        distance = calculate_optimal_distance(total_length, minimum_distance)
+        sections = round(total_length / distance)
+
+        if "Traffic Sign" in object_name:
+            traffic_signs_templates = objects_from_subcollections_in_collection_by_name("Templates", "Traffic Sign")
+
+            # Adjust the position offset for traffic signs
+            offset /= 3
+
+            # Get a random number of traffic signs
+            number = random.randint(0, int(total_length / distance))
+
+            # Find random positions for the number of traffic signs
+            if number == 0:
+                positions = [random.uniform(2, total_length - 2)]
+            else:
+                positions = [random.uniform(2, total_length - 2) for _ in range(number)]
+                positions.sort()
+        else:
+            # Get the template for other objects
+            object_template = bpy.data.objects.get(object_name)
+
+            # Calculate the (uniform) positions for the other objects
+            positions = [distance * i for i in range(sections + 1)]
+
+        if not positions:
+            return
+
+        correction_difference = 0
+        length = 0
+        reference_direction = None
+
+        current_distance = positions.pop(0)
+
         # Iterate over all line mesh edges to find the positions to add the objects
         for edge in bm_line.edges:
             edge_length = edge.calc_length()
             length += edge_length
 
             corrected_length = length - correction_difference
-            current_distance = distance * counter
 
             # Calculate the position on the line mesh when the distance is big enough or when the last object is reached
             # (round corrected_length and current_distance to avoid floating point issues)
@@ -218,7 +252,7 @@ def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, m
                 v0 = edge.verts[0].co
                 v1 = edge.verts[1].co
                 vec = v1 - v0
-                unit_vec = vec / edge_length
+                vec.normalize()
 
                 if counter == 0:
                     # Use no difference for the first position, because we only use the first vertex for this
@@ -236,7 +270,7 @@ def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, m
                     correction_difference += difference
 
                 # Calculate the accurate point between the two line mesh vertices
-                position = vertex - unit_vec * difference
+                position = vertex - vec * difference
                 position = m @ position
 
                 # Find an orthogonal vector to determine the direction for shifting/moving the object
@@ -245,13 +279,25 @@ def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, m
                 # Shift this orthogonal vector by an offset and the found position
                 shifted_position = position + orthogonal_vec * offset
 
+                # Select a random traffic sign template
+                if "Traffic Sign" in object_name:
+                    index = random.randint(0, len(traffic_signs_templates) - 1)
+                    object_template = traffic_signs_templates[index]
+                    reference_direction = -vec if side == "Left" else vec
+
                 # Add an object at the shifted position and rotate it
                 object = add_object_at_position(object_template, shifted_position)
-                rotate_object(object, position)
+                rotate_object(object, position, reference_direction)
 
                 counter += 1
 
-    print(f"\t{counter} {object_template.name}s added")
+                if positions:
+                    current_distance = positions.pop(0)
+                else:
+                    break
+
+    name = object_name + "s" if counter > 1 else object_name
+    print(f"\t{counter} {name} added")
 
 
 def apply_modifiers(mesh: bpy.types.Object):

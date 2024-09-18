@@ -60,7 +60,7 @@ class RG_RoadNetGenerator:
         add_geometry_and_measure_time(sidewalk_generator, roads, "sidewalk")
 
         # Visualize objects in Blender
-        object_generator = RG_ObjectGenerator(["Street Lamp", "Traffic Light"])
+        object_generator = RG_ObjectGenerator(["Street Lamp", "Traffic Light", "Traffic Sign"])
         add_geometry_and_measure_time(object_generator, roads, "object")
 
         # Visualize crossroads in Blender
