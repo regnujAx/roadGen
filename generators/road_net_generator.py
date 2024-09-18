@@ -23,6 +23,8 @@ class RG_RoadNetGenerator:
 
         curves = visible_curves()
 
+        start = time()
+
         print("\n\n--- Starting road net generation ---")
 
         # Create road data
@@ -81,6 +83,8 @@ class RG_RoadNetGenerator:
                 sidewalk_generator.add_geometry(curve=curve)
 
         print(f"Crossroad generation ({len(crossroad_points)} in total) completed in {time() - t:.2f}s")
+
+        print(f"\n--- Overall road net generation time: {time() - start:.2f}s ---")
 
         # sidewalk_generator.correct_sidewalks()
 
