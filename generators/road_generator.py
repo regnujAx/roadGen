@@ -35,24 +35,15 @@ class RG_RoadGenerator(RG_GeometryGenerator):
 
 
 def add_road_lanes(road: RG_Road):
-    road_lane_mesh_template_inside = bpy.data.objects.get("Road_Lane_Inside")
+    if not road.road_lane_mesh_template:
+        road.road_lane_mesh_template = bpy.data.objects.get("Road_Lane")
 
-    if not road.road_lane_mesh_template_inside:
-        road.road_lane_mesh_template_inside = road_lane_mesh_template_inside
-
-    for side in ["Left", "Right"]:
-        road_lane_mesh_template_outside = bpy.data.objects.get(f"Road_Lane_Border_{side}")
-
-        if not road.road_lane_mesh_template_left and side == "Left":
-            road.road_lane_mesh_template_left = road_lane_mesh_template_outside
-        elif not road.road_lane_mesh_template_right and side == "Right":
-            road.road_lane_mesh_template_right = road_lane_mesh_template_outside
-
-        if road_lane_mesh_template_outside and road_lane_mesh_template_inside:
+    if road.road_lane_mesh_template:
+        for side in ["Left", "Right"]:
             lane_number = road.left_lanes if side == "Left" else road.right_lanes
 
             for i in range(lane_number):
-                template = road_lane_mesh_template_outside if i == lane_number - 1 else road_lane_mesh_template_inside
+                template = road.road_lane_mesh_template if i == lane_number - 1 else road.road_lane_mesh_template
                 index = -i if side == "Left" else i + 1
                 mesh = add_mesh_to_curve(template, road.curve, f"Road_Lane_{side}", road.lane_width, index)
 
@@ -60,6 +51,5 @@ def add_road_lanes(road: RG_Road):
                     road.road_lanes_left.append(mesh)
                 else:
                     road.road_lanes_right.append(mesh)
-        else:
-            print("Check whether the objects Road_Lane_Border_Left, Road_Lane_Border_Right "
-                  "and Road_Lane_Inside are present. At least one is missing.")
+    else:
+        print("Check whether the object Road_Lane is present. It is missing.")

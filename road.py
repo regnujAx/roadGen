@@ -8,9 +8,7 @@ class RG_Road:
         self.left_lanes = self.curve["Left Lanes"]
         self.right_lanes = self.curve["Right Lanes"]
         self.lamp_distance = self.curve["Lamp Distance"]
-        self.road_lane_mesh_template_inside = None
-        self.road_lane_mesh_template_left = None
-        self.road_lane_mesh_template_right = None
+        self.road_lane_mesh_template = None
         self.road_lanes_left = []
         self.road_lanes_right = []
         self.kerb_mesh_template = None
