@@ -74,13 +74,15 @@ class RG_RoadNetGenerator:
         for crossroad_point in crossroad_points:
             # Get the original curves to generate the crossroad as such
             curves = crossing_curves(crossroad_point)
-            crossroad_generator.add_geometry(curves, crossroad_point)
 
-            # Get the curves of the crossroad to generate kerbs and sidewalks
-            curves = crossing_curves(crossroad_point, True)
-            for curve in curves:
-                kerb_generator.add_geometry(curve=curve)
-                sidewalk_generator.add_geometry(curve=curve)
+            if len(curves) > 1:
+                crossroad_generator.add_geometry(curves, crossroad_point)
+
+                # Get the curves of the crossroad to generate kerbs and sidewalks
+                curves = crossing_curves(crossroad_point, True)
+                for curve in curves:
+                    kerb_generator.add_geometry(curve=curve)
+                    sidewalk_generator.add_geometry(curve=curve)
 
         print(f"Crossroad generation ({len(crossroad_points)} in total) completed in {time() - t:.2f}s")
 

@@ -8,6 +8,7 @@ class RG_ObjectGenerator():
 
     def add_geometry(self, road: RG_Road = None, side: str = None):
         offset = road.sidewalk_mesh_template.dimensions[1]
-        offset *= -1 if side == "Left" else 1
+        height = road.sidewalk_mesh_template.dimensions[2]
+
         for object_name in self.object_names:
-            add_objects_to_curve(object_name, road.curve, side, road.lamp_distance, offset)
+            add_objects_to_curve(object_name, road.curve, side, road.lamp_distance, offset, height)

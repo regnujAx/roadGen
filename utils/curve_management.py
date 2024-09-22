@@ -9,9 +9,9 @@ def sort_curves(curves: list, reference_point: Vector):
     direction_vectors = []
     # Calculate for each curve a direction vector from curve to reference point
     for curve in curves:
-        curve_point = closest_curve_point(curve, reference_point)
-        curve_point_co = curve.matrix_world @ curve_point.co
+        curve_point_co = closest_curve_point(curve, reference_point, True)
         direction_vector = curve_point_co - reference_point
+
         # Save each curve and its direction vector
         direction_vectors.append((curve, direction_vector))
 

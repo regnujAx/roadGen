@@ -4,22 +4,18 @@ import bpy
 class RG_Road:
     def __init__(self, curve: bpy.types.Object):
         self.curve = curve
-        self.lane_width = self.curve["Lane Width"]
-        self.left_lanes = self.curve["Left Lanes"]
-        self.right_lanes = self.curve["Right Lanes"]
-        self.lamp_distance = self.curve["Lamp Distance"]
-        self.road_lane_mesh_template = None
-        self.road_lanes_left = []
-        self.road_lanes_right = []
+        self.curve_left = None
+        self.curve_right = None
+        self.lane_width = self.curve.get("Lane Width")
+        self.left_lanes = self.curve.get("Left Lanes")
+        self.right_lanes = self.curve.get("Right Lanes")
+        self.left_turning_lane_distance = self.curve.get("Left Turning Lane Distance")
+        self.right_turning_lane_distance = self.curve.get("Right Turning Lane Distance")
+        self.lamp_distance = self.curve.get("Lamp Distance")
         self.kerb_mesh_template = None
         self.kerbs = []
         self.sidewalk_mesh_template = None
         self.sidewalks = {}
 
     def dropped_positions(self, side: str):
-        return [int(x) for x in self.curve[f"{side} Dropped Kerbs"].split(",")]
-
-    # ToDo: Check if it is still required
-    def width_per_side(self, side: str):
-        road_lanes = self.road_lanes_left if side == "Left" else self.road_lanes_right
-        return self.lane_width * road_lanes + self.kerb_mesh_template.dimensions[1] + self.sidewalk_mesh_template.dimensions[1]
+        return [int(x) for x in self.curve.get(f"{side} Dropped Kerbs").split(",")]

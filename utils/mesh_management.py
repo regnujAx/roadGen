@@ -60,42 +60,35 @@ def add_line_following_mesh(mesh_name: str):
     line_mesh.location = mesh.location
 
 
-def add_mesh_to_curve(
-        mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, lane_width: float, index: int,
-        offset: float = None):
-    collection_name = "Road Lanes"
+def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, offset: float = 0.0):
+    collection_name = "Kerbs"
     child_collection_name = None
     mesh = mesh_template.copy()
     mesh.data = mesh_template.data.copy()
-    mesh.name = name + "_" + curve.name
+    mesh.name = name
     mesh.location = curve.location
 
     x, y, z = 0.0, 0.0, 0.0
-    # Translate the created mesh according to the lane width and the number of lanes per road side (i.e. index)
-    if "Lane" in name:
-        y = lane_width * index - lane_width / 2
-        mesh.dimensions[1] = lane_width
-    elif "Kerb" in name:
-        collection_name = "Kerbs"
-        # Calculate an offset for the y-coordinate depending on the lane width, index and side of the kerb (right:neg, left:pos)
-        sign = 1 if index < 0 else -1
-        y = lane_width * index - sign * mesh.dimensions[1] / 2
+
+    if "Kerb" in name:
         # Keep its original z-location for the kerb
         z = mesh.location[2]
     elif "Sidewalk" in name:
         collection_name = "Sidewalks"
+
         # Add for every sidewalk a new collection for separated meshes
         child_collection_name = mesh.name
-        sign = -1 if index < 0 else 1
-        y = lane_width * index + sign * (mesh.dimensions[1] / 2 + offset)
+
+    # Translate the created mesh according to its y-dimension and an offset
+    y += mesh.dimensions[1] / 2 + offset
     mesh.location += Vector((x, y, z))
 
     # Calculate and update the x-dimension of the mesh so it fits better to its curve
+    # (add a threshold to also take the last part into account)
     curve_length = curve.data.splines[0].calc_length()
     minimum_width = 2.0
     threshold = 0.001
-    x_dim = calculate_optimal_distance(curve_length, minimum_width)
-    mesh.dimensions[0] = x_dim + threshold
+    mesh.dimensions[0] = calculate_optimal_distance(curve_length, minimum_width) + threshold
 
     # Apply the correct curve for the mesh modifiers
     mesh.modifiers["Array"].curve = curve
@@ -153,148 +146,137 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     return object_copy
 
 
-def add_objects_to_curve(object_name: str, curve: bpy.types.Object, side: str, minimum_distance: float, offset: float):
-    line_mesh = bpy.data.objects.get("Line_Mesh_Kerb_" + side + "_" + curve.name)
+def add_objects_to_curve(
+        object_name: str, curve: bpy.types.Object, side: str, minimum_distance: float, offset: float, height: float):
+    line_mesh = bpy.data.objects.get(f"Line_Mesh_{curve.name}_{side}")
     m = line_mesh.matrix_world
 
     # Create a BMesh from the line mesh for edge length calculation
     mesh_eval_data = line_mesh.data
     bm_line = bmesh.new()
     bm_line.from_mesh(mesh_eval_data)
+    total_length = line_mesh_length(bm_line)
 
     counter = 0
     position = None
     reference_direction = None
+    use_reference_direction = False
 
-    if "Traffic Light" in object_name:
-        bm_line.edges.ensure_lookup_table()
-        edge = bm_line.edges[-1] if side == "Left" else bm_line.edges[0]
-        v0 = edge.verts[0].co
-        v1 = edge.verts[1].co
-        vec = v1 - v0
+    distance = calculate_optimal_distance(total_length, minimum_distance)
+    sections = round(total_length / distance)
 
-        # Calculate the accurate point between the two line mesh vertices
-        vert = v1 if side == "Left" else v0
-        position = m @ vert
+    if "Traffic Sign" in object_name:
+        traffic_signs_templates = objects_from_subcollections_in_collection_by_name("Templates", "Traffic Sign")
 
-        # Find an orthogonal vector to determine the direction for shifting/moving the object
-        orthogonal_vec = orthogonal_vector(vec)
+        use_reference_direction = True
+
+        # Adjust the position offset for traffic signs
+        offset /= 3
+
+        # Get a random number of traffic signs
+        number = random.randint(0, int(total_length / distance))
+
+        # Find random positions for the number of traffic signs
+        if number == 0:
+            positions = [random.uniform(2, total_length - 2)]
+        else:
+            positions = [random.uniform(2, total_length - 2) for _ in range(number)]
+            positions.sort()
+    elif "Traffic Light" in object_name:
+        # Check for turning lane and add an additional road lane if there is one
+        lanes_number = curve.get(f"{side} Lanes")
+        turning_lane_distance = curve.get(f"{side} Turning Lane Distance")
+
+        if turning_lane_distance and total_length > turning_lane_distance * 1.5:
+            lanes_number += 1
+
+        object_template = bpy.data.objects.get(f"{object_name} {lanes_number}")
+
+        # If there is only one lane per side use a reference vector to rotate the corresponding mesh correctly
+        if lanes_number == 1:
+            use_reference_direction = True
 
         # Adjust the position offset for traffic lights
         offset /= 4
 
-        # Shift this orthogonal vector by an offset and the found position
-        shifted_position = position + orthogonal_vec * offset
-        lanes_number = curve[f"{side} Lanes"]
+        positions = [1.0]
+    else:
+        # Get the template for other objects
+        object_template = bpy.data.objects.get(object_name)
 
-        object_template_name = object_name + f" {lanes_number}"
-        object_template = bpy.data.objects.get(object_template_name)
-        if object_template:
+        # Calculate the (uniform) positions for the other objects
+        positions = [distance * i for i in range(sections + 1)]
+
+    if not positions:
+        return
+
+    correction_difference = 0
+    length = 0
+
+    current_distance = positions.pop(0)
+
+    # Iterate over all line mesh edges to find the positions to add the objects
+    for edge in bm_line.edges:
+        edge_length = edge.calc_length()
+        length += edge_length
+
+        corrected_length = length - correction_difference
+
+        # Calculate the position on the line mesh when the distance is big enough or when the last object is reached
+        # (round corrected_length and current_distance to avoid floating point issues)
+        if ((corrected_length <= total_length and corrected_length >= current_distance)
+                or (counter == sections and round(corrected_length, 10) == round(current_distance, 10))):
+            v0 = edge.verts[0].co
+            v1 = edge.verts[1].co
+            vec = v1 - v0
+            vec.normalize()
+
+            if counter == 0:
+                # Use no difference for the first position, because we only use the first vertex for this
+                # and not the second vertex
+                difference = 0
+                vertex = v0
+            else:
+                difference = corrected_length - current_distance
+                vertex = v1
+
+                # Add the difference to the current length for more precise finding of further positions
+                length += difference
+
+                # Note the difference for correction of further positions
+                correction_difference += difference
+
+            # Calculate the accurate point between the two line mesh vertices
+            position = m @ (vertex - vec * difference)
+
+            # Find an orthogonal vector to determine the direction for shifting/moving the object
+            orthogonal_vector = Vector((-vec.y, vec.x, 0))
+
+            # Shift this orthogonal vector by an offset and the found position
+            shifted_position = position + orthogonal_vector * offset
+
+            # Select a random traffic sign template
+            if "Traffic Sign" in object_name:
+                index = random.randint(0, len(traffic_signs_templates) - 1)
+                object_template = traffic_signs_templates[index]
+
+            if use_reference_direction:
+                reference_direction = vec
+
             # Add an object at the shifted position and rotate it
             object = add_object_at_position(object_template, shifted_position)
-
-            if lanes_number == 1:
-                reference_direction = -vec if side == "Left" else vec
-
             rotate_object(object, position, reference_direction)
 
+            # Set the height correctly
+            if object.location.z == 0.0:
+                object.location.z = height
+
             counter += 1
-        else:
-            print(f"The object with the name {object_name} cannot be found. "
-                  "Check whether the object you want to add exists.")
-    else:
-        total_length = line_mesh_length(bm_line)
-        distance = calculate_optimal_distance(total_length, minimum_distance)
-        sections = round(total_length / distance)
 
-        if "Traffic Sign" in object_name:
-            traffic_signs_templates = objects_from_subcollections_in_collection_by_name("Templates", "Traffic Sign")
-
-            # Adjust the position offset for traffic signs
-            offset /= 3
-
-            # Get a random number of traffic signs
-            number = random.randint(0, int(total_length / distance))
-
-            # Find random positions for the number of traffic signs
-            if number == 0:
-                positions = [random.uniform(2, total_length - 2)]
+            if positions:
+                current_distance = positions.pop(0)
             else:
-                positions = [random.uniform(2, total_length - 2) for _ in range(number)]
-                positions.sort()
-        else:
-            # Get the template for other objects
-            object_template = bpy.data.objects.get(object_name)
-
-            # Calculate the (uniform) positions for the other objects
-            positions = [distance * i for i in range(sections + 1)]
-
-        if not positions:
-            return
-
-        correction_difference = 0
-        length = 0
-        reference_direction = None
-
-        current_distance = positions.pop(0)
-
-        # Iterate over all line mesh edges to find the positions to add the objects
-        for edge in bm_line.edges:
-            edge_length = edge.calc_length()
-            length += edge_length
-
-            corrected_length = length - correction_difference
-
-            # Calculate the position on the line mesh when the distance is big enough or when the last object is reached
-            # (round corrected_length and current_distance to avoid floating point issues)
-            if ((corrected_length <= total_length and corrected_length >= current_distance)
-                    or (counter == sections and round(corrected_length, 10) == round(current_distance, 10))):
-                v0 = edge.verts[0].co
-                v1 = edge.verts[1].co
-                vec = v1 - v0
-                vec.normalize()
-
-                if counter == 0:
-                    # Use no difference for the first position, because we only use the first vertex for this
-                    # and not the second vertex
-                    difference = 0
-                    vertex = v0
-                else:
-                    difference = corrected_length - current_distance
-                    vertex = v1
-
-                    # Add the difference to the current length for more precise finding of further positions
-                    length += difference
-
-                    # Note the difference for correction of further positions
-                    correction_difference += difference
-
-                # Calculate the accurate point between the two line mesh vertices
-                position = vertex - vec * difference
-                position = m @ position
-
-                # Find an orthogonal vector to determine the direction for shifting/moving the object
-                orthogonal_vec = orthogonal_vector(vec)
-
-                # Shift this orthogonal vector by an offset and the found position
-                shifted_position = position + orthogonal_vec * offset
-
-                # Select a random traffic sign template
-                if "Traffic Sign" in object_name:
-                    index = random.randint(0, len(traffic_signs_templates) - 1)
-                    object_template = traffic_signs_templates[index]
-                    reference_direction = -vec if side == "Left" else vec
-
-                # Add an object at the shifted position and rotate it
-                object = add_object_at_position(object_template, shifted_position)
-                rotate_object(object, position, reference_direction)
-
-                counter += 1
-
-                if positions:
-                    current_distance = positions.pop(0)
-                else:
-                    break
+                break
 
     name = object_name + "s" if counter > 1 else object_name
     print(f"\t{counter} {name} added")
@@ -320,7 +302,7 @@ def calculate_optimal_distance(length: float, minimum: float):
     return length if number == 0 else length / number
 
 
-def closest_curve_point(curve: bpy.types.Object, reference_point: Vector):
+def closest_curve_point(curve: bpy.types.Object, reference_point: Vector, in_global_co: bool = False):
     # Get the curve end points in world space
     m = curve.matrix_world
     first_curve_point = curve.data.splines[0].bezier_points[0]
@@ -329,6 +311,9 @@ def closest_curve_point(curve: bpy.types.Object, reference_point: Vector):
     last_curve_point_co = m @ last_curve_point.co
 
     point = closest_point([first_curve_point_co, last_curve_point_co], reference_point)
+
+    if in_global_co:
+        return first_curve_point_co if point == first_curve_point_co else last_curve_point_co
 
     return first_curve_point if point == first_curve_point_co else last_curve_point
 
@@ -347,29 +332,6 @@ def closest_point(points: list, reference_point: Vector):
     return closest_point
 
 
-def coplanar_faces(mesh: bpy.types.Object, normal: Vector, index: int, road_height: float = 0.1, threshold: float = 0.001):
-    data = mesh.data
-    bm = bmesh.new()
-    bm.from_mesh(data)
-    bm.faces.ensure_lookup_table()
-    face = bm.faces[index]
-    coplanar_faces_ids = []
-    coplanar_faces_ids.append(face.index)
-
-    # Iterate over all faces and check for each if it is coplanar to the current face
-    for i in range(len(bm.faces)):
-        for e in face.edges:
-            for link_face in e.link_faces:
-                if (link_face.normal.angle(normal) < threshold and
-                        link_face.index not in coplanar_faces_ids and
-                        link_face.calc_center_median().z < road_height):
-                    coplanar_faces_ids.append(link_face.index)
-                    face = link_face
-                    break
-
-    return [data.polygons[idx] for idx in coplanar_faces_ids]
-
-
 def create_kdtree(vertices: list, size: int):
     # Create a KD-Tree to perform a spatial search
     kd = kdtree.KDTree(size)
@@ -385,9 +347,11 @@ def create_kdtree(vertices: list, size: int):
 def curve_to_mesh(curve: bpy.types.Object):
     # Create a line mesh from the curve and link it to its collection
     mesh = curve.to_mesh()
-    line_mesh = bpy.data.objects.new("Line_Mesh_" + curve.name, mesh.copy())
+    line_mesh = bpy.data.objects.new(f"Line_Mesh_{curve.name}", mesh.copy())
     line_mesh.matrix_world = curve.matrix_world
     link_to_collection(line_mesh, "Line Meshes")
+
+    return line_mesh
 
 
 def deselect_all():
@@ -395,9 +359,9 @@ def deselect_all():
         object.select_set(False)
 
 
-def edit_mesh_at_positions(mesh_name: str, positions: list):
+def edit_mesh_at_positions(mesh_name: str, positions: list, reference_mesh_name: str):
     # Get the corresponding line mesh
-    line_mesh = bpy.data.objects.get("Line_Mesh_" + mesh_name)
+    line_mesh = bpy.data.objects.get(f"Line_Mesh_{reference_mesh_name}")
 
     # Create a BMesh from the line mesh for edge length calculation
     mesh_eval_data = line_mesh.data
@@ -441,6 +405,16 @@ def edit_mesh_at_positions(mesh_name: str, positions: list):
                     vertex.z -= 0.135
 
     bm_line.free()
+
+
+def extrude_mesh(mesh: bpy.types.Object, height: float):
+    # Edit the mesh
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    # Extrude the mesh
+    bpy.ops.mesh.extrude_region_move(TRANSFORM_OT_translate={"value": (0.0, 0.0, height)})
+    bpy.ops.object.mode_set(mode='OBJECT')
 
 
 def find_closest_points(list: list, reference_point: Vector, find_all: bool = True):
@@ -503,27 +477,6 @@ def line_mesh_length(line_mesh: bmesh):
     return total_length
 
 
-def line_meshes(curve_name: str):
-    left_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Left_{curve_name}")
-    right_line_mesh = bpy.data.objects.get(f"Line_Mesh_Kerb_Right_{curve_name}")
-
-    return left_line_mesh, right_line_mesh
-
-
-def orthogonal_vector(vector: Vector):
-    # Define a not parallel vector to get a correct orthogonal vector
-    if vector[0] != 0 or vector[2] != 0:
-        not_parallel_vec = Vector((0, 0, 1))
-    else:
-        not_parallel_vec = Vector((1, 0, 0))
-
-    # Calculate the cross product to find an orthogonal vector and normalize it
-    cross = not_parallel_vec.cross(vector)
-    cross.normalize()
-
-    return cross
-
-
 def rotate_object(object: bpy.types.Object, reference_point: Vector, reference_direction: Vector = None):
     furthest_child_location = None
     max_distance = 0.0
@@ -548,8 +501,6 @@ def rotate_object(object: bpy.types.Object, reference_point: Vector, reference_d
         shift = reference_point - object_location
         shifted_location = furthest_child_location + shift
         direction = shifted_location - reference_point
-        direction.z = 0.0
-        direction.normalize()
     else:
         # Find the furthest vertex of all children and remember the corresponding child location
         for child in object.children:
@@ -567,12 +518,13 @@ def rotate_object(object: bpy.types.Object, reference_point: Vector, reference_d
 
         # Get the direction from the object to this furthest child
         direction = furthest_child_location - object_location
-        direction.z = 0.0
-        direction.normalize()
 
         # Get the reference vector between the object and the reference point
         reference_direction = reference_point - object_location
         reference_direction.normalize()
+
+    direction.z = 0.0
+    direction.normalize()
 
     # Calculate the dot product of the two vectors and their lengths
     dot_product = direction.dot(reference_direction)

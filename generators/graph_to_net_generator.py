@@ -130,14 +130,22 @@ def visualize_curves(graph):
 
                             if vec.length < crossroad_size:
                                 previous_edge_point = edge_point
+
                                 # Remove the point if it is too close to begin/end point
                                 edge_points_copy.popleft() if x == 0 else edge_points_copy.pop()
+
                                 continue
                             else:
                                 # Add a new point with updated coordinates
                                 # when a point is reached that is far enough away from the begin/end point
+                                # and when it is not too close to the last added point
                                 new_co = intersection_with_circle(previous_edge_point, edge_point, point, crossroad_size)
-                                edge_points_copy.appendleft(new_co) if x == 0 else edge_points_copy.append(new_co)
+
+                                last_added_point = edge_points_copy[0] if x == 0 else edge_points_copy[-1]
+
+                                if (last_added_point.to_3d() - new_co).length > 0.001:
+                                    edge_points_copy.appendleft(new_co) if x == 0 else edge_points_copy.append(new_co)
+
                                 break
 
                 # Skip edges with less than two points
