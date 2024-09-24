@@ -85,7 +85,7 @@ def visualize_curves(graph):
         bpy.context.scene.collection.children.link(curves_collection)
 
     index = 0
-    minimum_crossroad_size = 10.0
+    minimum_crossroad_size = 12.0
 
     for node in graph.nodes:
         for edge in node.edges:
@@ -105,7 +105,7 @@ def visualize_curves(graph):
 
                 # Increase the size of the crossroad if it is a major road
                 if edge.major:
-                    crossroad_size = minimum_crossroad_size + 4.0
+                    crossroad_size = minimum_crossroad_size + 5.0
 
                 # Skip edges that are too small
                 if vec.length < crossroad_size * 2:

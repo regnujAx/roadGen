@@ -5,6 +5,7 @@ import random
 
 from mathutils import bvhtree, kdtree, Vector
 
+from roadGen.road import RG_Road
 from roadGen.utils.collection_management import link_to_collection, objects_from_subcollections_in_collection_by_name
 
 
@@ -60,7 +61,7 @@ def add_line_following_mesh(mesh_name: str):
     line_mesh.location = mesh.location
 
 
-def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, offset: float = 0.0):
+def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, name: str, index: int, offset: float = 0.0):
     collection_name = "Kerbs"
     child_collection_name = None
     mesh = mesh_template.copy()
@@ -80,7 +81,7 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
         child_collection_name = mesh.name
 
     # Translate the created mesh according to its y-dimension and an offset
-    y += mesh.dimensions[1] / 2 + offset
+    y += index * (mesh.dimensions[1] / 2 + offset)
     mesh.location += Vector((x, y, z))
 
     # Calculate and update the x-dimension of the mesh so it fits better to its curve
@@ -146,9 +147,8 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     return object_copy
 
 
-def add_objects_to_curve(
-        object_name: str, curve: bpy.types.Object, side: str, minimum_distance: float, offset: float, height: float):
-    line_mesh = bpy.data.objects.get(f"Line_Mesh_{curve.name}_{side}")
+def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: float, height: float):
+    line_mesh = bpy.data.objects.get(f"Line_Mesh_{road.curve.name}_{side}")
     m = line_mesh.matrix_world
 
     # Create a BMesh from the line mesh for edge length calculation
@@ -162,7 +162,7 @@ def add_objects_to_curve(
     reference_direction = None
     use_reference_direction = False
 
-    distance = calculate_optimal_distance(total_length, minimum_distance)
+    distance = calculate_optimal_distance(total_length, road.lamp_distance)
     sections = round(total_length / distance)
 
     if "Traffic Sign" in object_name:
@@ -184,10 +184,11 @@ def add_objects_to_curve(
             positions.sort()
     elif "Traffic Light" in object_name:
         # Check for turning lane and add an additional road lane if there is one
-        lanes_number = curve.get(f"{side} Lanes")
-        turning_lane_distance = curve.get(f"{side} Turning Lane Distance")
+        lanes_number = road.curve.get(f"{side} Lanes")
+        turning_lane_distance = road.left_turning_lane_distance if side == "Left" else road.right_turning_lane_distance
+        has_turning_lane = road.has_left_turning_lane if side == "Left" else road.has_right_turning_lane
 
-        if turning_lane_distance and total_length > turning_lane_distance * 1.5:
+        if turning_lane_distance and has_turning_lane:
             lanes_number += 1
 
         object_template = bpy.data.objects.get(f"{object_name} {lanes_number}")
@@ -215,7 +216,7 @@ def add_objects_to_curve(
 
     current_distance = positions.pop(0)
 
-    # Iterate over all line mesh edges to find the positions to add the objects
+    # Iterate over all line mesh edges to find the mesh positions to add the objects
     for edge in bm_line.edges:
         edge_length = edge.calc_length()
         length += edge_length
@@ -342,6 +343,30 @@ def create_kdtree(vertices: list, size: int):
     kd.balance()
 
     return kd
+
+
+def create_mesh_from_vertices(vertices: list, category_name: str, suffix: str, height: float):
+    # Create the face (only one) based on the vertices for the mesh
+    face = []
+    faces = []
+    for index in range(len(vertices)):
+        face.append(index)
+    faces.append(face)
+
+    # Create the 2D mesh and link it to its corresponding collection
+    mesh = bpy.data.meshes.new(f"{category_name} Mesh")
+    mesh.from_pydata(vertices, [], faces)
+    new_category_name = category_name.replace(" ", "_")
+    obj = bpy.data.objects.new(f"{new_category_name}_{suffix}", mesh)
+    link_to_collection(obj, f"{category_name}s")
+
+    # Extrude the 2D mesh so it is a 3D mesh
+    extrude_mesh(obj, height)
+
+    # Set the origin to the center of the mesh (Hint: This overwrites the location.)
+    set_origin(obj, 'BOUNDS')
+
+    return obj
 
 
 def curve_to_mesh(curve: bpy.types.Object):

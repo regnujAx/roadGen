@@ -25,6 +25,9 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
             print("Check whether the object Sidewalk exists. It is missing.")
 
     def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None):
+        if curve:
+            # The sidewalk has to be on the other side of a crossroad curve
+            index = -1
         if road:
             if not road.sidewalk_mesh_template:
                 road.sidewalk_mesh_template = self.mesh_template
@@ -36,7 +39,9 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
             elif side == "Right" and road.curve_right:
                 curve = road.curve_right
 
-        mesh = add_mesh_to_curve(self.mesh_template, curve, f"Sidewalk_{curve.name}", self.offset)
+            index = 1
+
+        mesh = add_mesh_to_curve(self.mesh_template, curve, f"Sidewalk_{curve.name}", index, self.offset)
 
         if curve.name not in self.sidewalks:
             self.sidewalks[curve.name] = []

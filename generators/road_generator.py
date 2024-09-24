@@ -4,8 +4,8 @@ from mathutils import Vector
 
 from roadGen.generators.geometry_generator import RG_GeometryGenerator
 from roadGen.road import RG_Road
-from roadGen.utils.mesh_management import apply_transform, curve_to_mesh, extrude_mesh, set_origin
-from roadGen.utils.collection_management import link_to_collection
+from roadGen.utils.mesh_management import apply_transform, closest_curve_point, create_mesh_from_vertices, curve_to_mesh
+from roadGen.utils.collection_management import crossing_curves, crossing_points, link_to_collection
 
 
 class RG_RoadGenerator(RG_GeometryGenerator):
@@ -42,38 +42,36 @@ def add_road_lanes(road: RG_Road):
         curve = road.curve
         lane_number = road.left_lanes if side == "Left" else road.right_lanes
         bezier_points = curve.data.splines[0].bezier_points
-        total_length = curve.data.splines[0].calc_length()
-
         reverse = False
 
         # Create the left side backwards/reversed
         if side == "Left":
             reverse = True
 
-        # If there is a turning lane and it is enough space for it, the index of the bezier point is calculated
-        # to find a start for the tuning lane
-        if side == "Left" and road.left_turning_lane_distance and total_length > road.left_turning_lane_distance * 1.5:
-            extra_lane_start_index = calculate_start_index_with_distance(bezier_points, road.left_turning_lane_distance, reverse)
-        elif side == "Right" and road.right_turning_lane_distance and total_length > road.right_turning_lane_distance * 1.5:
-            extra_lane_start_index = calculate_start_index_with_distance(bezier_points, road.right_turning_lane_distance, reverse)
+        # If there is a turning lane distance and a turning lane is required, the index of the bezier point is calculated
+        # that represent the start for the tuning lane
+        if side == "Left" and road.left_turning_lane_distance and is_turning_lane_required(road, side):
+            turning_lane_start_index = calculate_turning_lane_start_index(bezier_points, road.left_turning_lane_distance, reverse)
+            road.has_left_turning_lane = True
+        elif side == "Right" and road.right_turning_lane_distance and is_turning_lane_required(road, side):
+            turning_lane_start_index = calculate_turning_lane_start_index(bezier_points, road.right_turning_lane_distance, reverse)
+            road.has_right_turning_lane = True
         else:
-            # Set the start index to 0 if there is no turning lane or not enough space for it, so that no extra lane is added
-            extra_lane_start_index = 0
-        print("curve.name:", curve.name)
-        print("extra_lane_start_index:", extra_lane_start_index)
-        crv = create_new_curve(bezier_points, road.lane_width, lane_number, extra_lane_start_index, reverse)
+            # Set the start index to -1 if there is no turning lane or not enough space for it, so that no extra lane is added
+            turning_lane_start_index = -1
+
+        crv = create_new_curve(bezier_points, road.lane_width, lane_number, turning_lane_start_index, reverse)
         new_curve = bpy.data.objects.new(f"{curve.name}_{side}", crv)
         new_curve.location = curve.location
         link_to_collection(new_curve, "Curves")
-        print("new_curve.name:", new_curve.name)
+
+        # Update the scene to get correctly positioned objects
+        bpy.context.view_layer.update()
 
         if side == "Left":
             road.curve_left = new_curve
         else:
             road.curve_right = new_curve
-
-        # Update the scene to get correctly positioned objects
-        bpy.context.view_layer.update()
 
         # Create a line mesh for the created side curve
         side_curve = bpy.data.objects.get(new_curve.name)
@@ -92,7 +90,7 @@ def add_road_lanes(road: RG_Road):
         line_mesh_vertices = curve_line_mesh.data.vertices
 
         # The left side was created backwards, so we can iterate forwards over the original curve mesh,
-        # only for the right side we have to iterate backwards
+        # only for the right side we have to iterate backwards (i.e. reverse the indices)
         indices = range(len(line_mesh_vertices))
 
         if not reverse:
@@ -104,47 +102,34 @@ def add_road_lanes(road: RG_Road):
             vertex_vec = Vector((vertex.x, vertex.y, 0.0))
             vertices.append(vertex_vec)
 
-        # Create the face (only one) based on the vertices for the road lane plane
-        face = []
-        faces = []
-        for index in range(len(vertices)):
-            face.append(index)
-        faces.append(face)
-
-        # Create the road lane plane and link it to its corresponding collection
-        mesh = bpy.data.meshes.new("Road Lane Mesh")
-        mesh.from_pydata(vertices, [], faces)
-
-        road_lane = bpy.data.objects.new(f"Road_Lanes_{side}_{curve.name}", mesh)
-        link_to_collection(road_lane, "Road Lanes")
-
-        # Extrude the road lane plane so it is a 3D mesh
-        extrude_mesh(road_lane, 0.1)
-
-        # Set the origin to the center of the mesh (Hint: This overwrites the location.)
-        set_origin(road_lane, 'BOUNDS')
+        create_mesh_from_vertices(vertices, "Road Lane", f"{side}_{curve.name}", 0.1)
 
 
-def calculate_start_index_with_distance(points: list, distance: float, reverse: bool):
+def calculate_turning_lane_start_index(points: list, distance: float, reverse: bool):
+    # Return 0 as start index if the road is too small so that the whole road get an extra lane
+    if (points[0].co - points[-1].co).length <= distance:
+        return 0
+
     length = 0
     start_index = 0
 
-    indices = range(len(points) - 1)
+    indices = range(len(points))
 
     if reverse:
         indices = reversed(indices)
 
     for i in indices:
-        length += (points[i + 1].co - points[i].co).length
+        index = i - 1 if reverse else i + 1
+        length += (points[index].co - points[i].co).length
 
         if length >= distance:
-            start_index = i + 1
+            start_index = index
             break
 
     return start_index
 
 
-def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, extra_lane_start_index: int, reverse: bool):
+def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, turning_lane_start_index: int, reverse: bool):
     # Create a new curve and change its curve type to 3D and increase its resolution
     curve = bpy.data.curves.new("curve", 'CURVE')
     curve.dimensions = "3D"
@@ -164,38 +149,31 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, e
     if reverse:
         indices = reversed(indices)
 
-    print("indices:", indices)
     # Calculate for each index the new (shifted) coordinates for each bezier_point of the new curve
     for i in indices:
         vec = bezier_points[i].handle_right - bezier_points[i].co
         vec.normalize()
 
-        orthogonal_vector = Vector((-vec.y, vec.x, 0))
+        # Invert the orthogonal vector for the left side
+        orthogonal_vector = Vector((vec.y, -vec.x, 0.0)) if reverse else Vector((-vec.y, vec.x, 0.0))
 
-        # Calculate the shift offset depending on iteration (reverse or not)
-        if reverse:
-            # Invert the orthogonal vector (for the left side)
-            orthogonal_vector = -orthogonal_vector
+        # For the left side, we iterate reverse, so that the first curve points must be shifted more
+        # than the rest, which is smaller than the passed index (opposite for the right side)
+        extra_lane_condition = (i >= turning_lane_start_index) if reverse else (i <= turning_lane_start_index)
 
-            # For the left side, we iterate reverse, so that the first curve points must be shifted more
-            # than the rest, which is smaller than the passed index
-            offset = lane_width * (lane_number + 1) if i >= extra_lane_start_index else lane_width * lane_number
+        # Calculate the shift offset depending on reverse or not
+        if turning_lane_start_index == -1:
+            offset = lane_width * lane_number
+        elif extra_lane_condition or turning_lane_start_index == 0:
+            offset = lane_width * (lane_number + 1)
         else:
-            offset = lane_width * (lane_number + 1) if i <= extra_lane_start_index else lane_width * lane_number
-
-        if extra_lane_start_index == 0:
             offset = lane_width * lane_number
 
-        print("offset:", offset)
-        print("orthogonal_vector:", orthogonal_vector)
         shift = orthogonal_vector * offset
-        print("shift:", shift)
 
         # Calculate the index for the current point of the new curve
         new_index = bezier_points_number - 1 - i if reverse else i
-        print("new_index:", new_index)
 
-        print("bezier_points[i].co:", bezier_points[i].co)
         # Set the coordinates of the current point
         new_bezier_points[new_index].co = bezier_points[i].co + shift
 
@@ -208,3 +186,58 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, e
         new_bezier_points[new_index].handle_right = correct_handle + shift
 
     return curve
+
+
+def is_turning_lane_required(road, side):
+    crossroad_points = crossing_points()
+
+    # Iterate over all crossroad points to find the point that belongs to the current road
+    for crossroad_point in crossroad_points:
+        curves = crossing_curves(crossroad_point)
+        curve_names = [curve.name for curve in curves]
+        curves_number = len(curves)
+        curve = road.curve
+
+        # Return False if the current road is a major road that splits into two roads so that no turning lane is required
+        if curves_number - 1 == 2 and curve.get("Major"):
+            return False
+
+        # Only possibly return True if there are more than two roads that belong to the crossroad point
+        # and if we found the correct crossroad point
+        if curves_number > 2 and curve.name in curve_names:
+            reference_point = crossroad_point.location
+            point = closest_curve_point(curve, reference_point, True)
+            first_point = curve.matrix_world @ curve.data.splines[0].bezier_points[0].co
+            last_point = curve.matrix_world @ curve.data.splines[0].bezier_points[-1].co
+
+            # Only possibly return True if it is the correct side
+            if side == "Left" and point == last_point or side == "Right" and point == first_point:
+                # Get the normalized direction vector for the curve point and the crossroad point
+                direction = reference_point - point
+                direction.normalize()
+
+                # Iterate over all curves that belong to the crossroad point
+                # to find the index of the road/curve in the properties of the crossroad point
+                for i in range(1, curves_number + 1):
+                    crv_name = crossroad_point.get(f"Curve {i}")
+                    crv = bpy.data.objects.get(crv_name)
+
+                    # Get the right neighbour of the current road/curve
+                    if crv.name == curve.name:
+                        neighbour_index = i + 1 if i < curves_number else 1
+                        right_neighbour_curve_name = crossroad_point.get(f"Curve {neighbour_index}")
+                        right_neighbour_curve = bpy.data.objects.get(right_neighbour_curve_name)
+
+                        # Get the normalized direction vector for the curve point of the right neighbour and the crossroad point
+                        right_neighbour_point = closest_curve_point(right_neighbour_curve, reference_point, True)
+                        right_neighbour_direction = reference_point - right_neighbour_point
+                        right_neighbour_direction.normalize()
+
+                        # Calculate the cross product between the two direction vectors to check
+                        # whether the right neighbour is really right to the current road and not, for example, straight
+                        cross_prod = right_neighbour_direction.cross(direction)
+
+                        if cross_prod.z < 0:
+                            return True
+
+    return False

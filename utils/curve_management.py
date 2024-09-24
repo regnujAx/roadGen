@@ -35,8 +35,8 @@ def sort_curves(curves: list, reference_point: Vector):
     for vector, angle in zip(direction_vectors, angles):
         vectors_and_angles.append((vector[0], angle))
 
-    # Sort the direction vectors according to angle and extract the corresponding curves
-    vectors_and_angles.sort(key=lambda x: x[1])
+    # Sort the direction vectors counter-clockwise according to angle and extract the corresponding curves
+    vectors_and_angles.sort(key=lambda x: x[1], reverse=True)
     sorted_curves = [curve for curve, _ in vectors_and_angles]
 
     return sorted_curves

@@ -1,5 +1,5 @@
 from roadGen.road import RG_Road
-from roadGen.utils.mesh_management import add_objects_to_curve
+from roadGen.utils.mesh_management import add_objects_to_road
 
 
 class RG_ObjectGenerator():
@@ -11,4 +11,4 @@ class RG_ObjectGenerator():
         height = road.sidewalk_mesh_template.dimensions[2]
 
         for object_name in self.object_names:
-            add_objects_to_curve(object_name, road.curve, side, road.lamp_distance, offset, height)
+            add_objects_to_road(object_name, road, side, offset, height)

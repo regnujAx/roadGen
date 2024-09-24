@@ -1,13 +1,13 @@
 from time import time
 
-from roadGen.generators.crossroad_generator import RG_CrossroadGenerator, crossing_curves, crossing_points
+from roadGen.generators.crossroad_generator import RG_CrossroadGenerator
 from roadGen.generators.data_generator import RG_DataGenerator
 from roadGen.generators.graph_to_net_generator import RG_GraphToNetGenerator
 from roadGen.generators.kerb_generator import RG_KerbGenerator
 from roadGen.generators.object_generator import RG_ObjectGenerator
 from roadGen.generators.road_generator import RG_RoadGenerator
 from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
-from roadGen.utils.collection_management import count_objects_in_collections
+from roadGen.utils.collection_management import count_objects_in_collections, crossing_curves, crossing_points
 from roadGen.utils.curve_management import visible_curves
 
 
@@ -72,7 +72,7 @@ class RG_RoadNetGenerator:
         crossroad_generator = RG_CrossroadGenerator()
 
         for crossroad_point in crossroad_points:
-            # Get the original curves to generate the crossroad as such
+            # Get the original curves to generate the crossroad as such to check if there are more than one
             curves = crossing_curves(crossroad_point)
 
             if len(curves) > 1:
@@ -80,6 +80,7 @@ class RG_RoadNetGenerator:
 
                 # Get the curves of the crossroad to generate kerbs and sidewalks
                 curves = crossing_curves(crossroad_point, True)
+
                 for curve in curves:
                     kerb_generator.add_geometry(curve=curve)
                     sidewalk_generator.add_geometry(curve=curve)

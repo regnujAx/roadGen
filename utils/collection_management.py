@@ -38,6 +38,40 @@ def count_objects_in_collections(collection_names: list, with_subcollections: bo
     return counter
 
 
+def crossing_curves(crossroad_point: bpy.types.Object, with_crossroad_curves: bool = False):
+    curves = []
+    curves_number = crossroad_point.get("Number of Curves")
+
+    if curves_number:
+        curves_number = int(curves_number)
+
+        if curves_number > 1:
+            for i in range(curves_number):
+                if with_crossroad_curves:
+                    curve_name_1 = crossroad_point.get(f"Curve {i+1}")
+
+                    if i < curves_number - 1:
+                        curve_name_2 = crossroad_point.get(f"Curve {i+2}")
+                    else:
+                        curve_name_2 = crossroad_point.get("Curve 1")
+
+                    curve_name = f"Crossroad_Curve_{curve_name_1}_{curve_name_2}"
+                else:
+                    curve_name = crossroad_point.get(f"Curve {i+1}")
+
+                curve = bpy.data.objects.get(curve_name)
+
+                if curve:
+                    curves.append(curve)
+
+    return curves
+
+
+def crossing_points():
+    markers = objects_from_collection("Crossing Points")
+    return [marker for marker in markers if marker.visible_get()]
+
+
 def delete_collection_and_subcollections(collection):
     for subcollection in collection.children:
         delete_collection_and_subcollections(subcollection)
