@@ -8,9 +8,9 @@ from roadGen.generators.data_generator import RG_DataGenerator
 from roadGen.generators.road_generator import RG_RoadGenerator
 from roadGen.generators.kerb_generator import RG_KerbGenerator
 from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
-from roadGen.generators.crossroad_generator import RG_CrossroadGenerator, crossing_points
-from roadGen.utils.collection_management import delete_collections_with_objects
-from roadGen.utils.curve_management import visible_curves
+from roadGen.generators.crossroad_generator import RG_CrossroadGenerator
+from roadGen.utils.collection_management import delete_collections_with_objects, get_crossing_curves, get_crossing_points
+from roadGen.utils.curve_management import get_visible_curves
 
 
 # ------------------------------------------------------------------------
@@ -71,12 +71,12 @@ class TestRoadDataCreation(unittest.TestCase):
 
         self.datamanager.create_road_data()
 
-        self.assertEqual(self.curve["Lane Width"], 2.5)
-        self.assertEqual(self.curve["Left Lanes"], 1)
-        self.assertEqual(self.curve["Right Lanes"], 1)
-        self.assertEqual(self.curve["Lamp Distance"], 10.0)
-        self.assertEqual(self.curve["Left Dropped Kerbs"], "5")
-        self.assertEqual(self.curve["Right Dropped Kerbs"], "15,30")
+        self.assertEqual(self.curve.get("Lane Width"), 3.5)
+        self.assertEqual(self.curve.get("Left Lanes"), 1)
+        self.assertEqual(self.curve.get("Right Lanes"), 1)
+        self.assertEqual(self.curve.get("Lamp Distance"), 10.0)
+        self.assertEqual(self.curve.get("Left Dropped Kerbs"), "5")
+        self.assertEqual(self.curve.get("Right Dropped Kerbs"), "15,30")
 
     def test_roadDataCreationWithInitialData(self):
         self.datamanager.create_road_data()
@@ -87,12 +87,12 @@ class TestRoadDataCreation(unittest.TestCase):
 
         self.datamanager.create_road_data()
 
-        self.assertEqual(self.curve["Lane Width"], 2.5)
-        self.assertEqual(self.curve["Left Lanes"], 2)
-        self.assertEqual(self.curve["Right Lanes"], 2)
-        self.assertEqual(self.curve["Lamp Distance"], 50.0)
-        self.assertEqual(self.curve["Left Dropped Kerbs"], "5")
-        self.assertEqual(self.curve["Right Dropped Kerbs"], "15,30")
+        self.assertEqual(self.curve.get("Lane Width"), 3.5)
+        self.assertEqual(self.curve.get("Left Lanes"), 2)
+        self.assertEqual(self.curve.get("Right Lanes"), 2)
+        self.assertEqual(self.curve.get("Lamp Distance"), 50.0)
+        self.assertEqual(self.curve.get("Left Dropped Kerbs"), "5")
+        self.assertEqual(self.curve.get("Right Dropped Kerbs"), "15,30")
 
 
 class TestRoadCreationAndDeletion(unittest.TestCase):
@@ -100,7 +100,7 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
         bpy.ops.wm.open_mainfile(filepath="test/test_data/test_scene.blend")
 
         self.curve = bpy.data.objects.get("Curve_000")
-        self.curves = visible_curves()
+        self.curves = get_visible_curves()
 
         cleanup()
         self.datamanager = RG_DataGenerator(self.curves)
@@ -114,10 +114,10 @@ class TestRoadCreationAndDeletion(unittest.TestCase):
 
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Left_Curve_000"))
         self.assertIsNotNone(bpy.data.objects.get("Road_Lane_Right_Curve_000"))
-        self.assertIsNotNone(bpy.data.objects.get("Kerb_Left_Curve_000"))
-        self.assertIsNotNone(bpy.data.objects.get("Kerb_Right_Curve_000"))
-        self.assertIsNotNone(bpy.data.objects.get("Line_Mesh_Kerb_Left_Curve_000"))
-        self.assertIsNotNone(bpy.data.objects.get("Line_Mesh_Kerb_Right_Curve_000"))
+        self.assertIsNotNone(bpy.data.objects.get("Kerb_Curve_000_Left"))
+        self.assertIsNotNone(bpy.data.objects.get("Kerb_Curve_000_Right"))
+        self.assertIsNotNone(bpy.data.objects.get("Line_Mesh_Curve_000_Left"))
+        self.assertIsNotNone(bpy.data.objects.get("Line_Mesh_Curve_000_Right"))
 
     def test_CreateAllRoads(self):
         for curve in self.curves:
@@ -177,8 +177,8 @@ class TestCrossroadCreation(unittest.TestCase):
     def setUp(self):
         bpy.ops.wm.open_mainfile(filepath="test/test_data/test_scene.blend")
 
-        self.crossroad_points = crossing_points()
-        self.curves = visible_curves()
+        self.crossroad_points = get_crossing_points()
+        self.curves = get_visible_curves()
 
         cleanup()
         self.datamanager = RG_DataGenerator(self.curves)
@@ -192,15 +192,16 @@ class TestCrossroadCreation(unittest.TestCase):
         self.sidewalk_generator = RG_SidewalkGenerator()
 
     def test_createCrossroad(self):
-        crossroad_generator = RG_CrossroadGenerator(self.kerb_generator, self.sidewalk_generator)
+        crossroad_generator = RG_CrossroadGenerator()
 
         for crossroad_point in self.crossroad_points:
-            crossroad_generator.add_geometry(crossroad_point)
+            curves = get_crossing_curves(crossroad_point)
+            crossroad_generator.add_geometry(curves, crossroad_point)
 
         self.assertIsNotNone(bpy.data.collections.get("Crossroads"))
 
-        for node in self.crossroad_points:
-            self.assertIsNotNone(bpy.data.objects.get(f"Crossroad_{node.name}"))
+        for crossroad_point in self.crossroad_points:
+            self.assertIsNotNone(bpy.data.objects.get(f"Crossroad_{crossroad_point.name}"))
 
 
 if __name__ == "__main__":
