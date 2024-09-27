@@ -5,12 +5,12 @@ from mathutils import Vector
 from roadGen.generators.geometry_generator import RG_GeometryGenerator
 from roadGen.road import RG_Road
 from roadGen.utils.collection_management import (
-    first_and_last_objects_from_collections, link_to_collection, objects_from_collection)
+    get_first_and_last_objects_from_collections, get_objects_from_collection, link_to_collection)
 from roadGen.utils.mesh_management import (
     add_mesh_to_curve,
     apply_modifiers,
     create_kdtree,
-    intersecting_meshes,
+    get_intersecting_meshes,
     separate_array_meshes,
     set_origin)
 
@@ -55,7 +55,7 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
 
         # Add the sidewalk meshes to the Road
         if road:
-            meshes = objects_from_collection(mesh.name)
+            meshes = get_objects_from_collection(mesh.name)
             road.sidewalks[side] = meshes
 
     # ToDo: Check if it is still required
@@ -63,8 +63,8 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
         collections = [collection for collections in list(self.sidewalks.values()) for collection in collections]
 
         number_of_meshes = 5
-        meshes = first_and_last_objects_from_collections(collections, number_of_meshes)
-        mesh_intersections = intersecting_meshes(meshes)
+        meshes = get_first_and_last_objects_from_collections(collections, number_of_meshes)
+        mesh_intersections = get_intersecting_meshes(meshes)
 
         edit_meshes = []
         for mesh in mesh_intersections.keys():
@@ -84,10 +84,11 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
                     intersect_modifier.operation = 'INTERSECT'
                     intersect_modifier.object = intersected_mesh
 
-                    # Link the mesh copy to its collection, apply its modifiers and update the origin
+                    # Link the mesh copy to its collection, apply its modifiers and set the origin
                     link_to_collection(mesh_copy, collection_name)
                     apply_modifiers(mesh_copy)
                     set_origin(mesh_copy)
+
                     # Scale the mesh copy a little bit up to get better results for the next step
                     mesh_copy.scale = Vector((1.001, 1.001, 1.001))
 

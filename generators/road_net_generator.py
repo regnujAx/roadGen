@@ -7,8 +7,8 @@ from roadGen.generators.kerb_generator import RG_KerbGenerator
 from roadGen.generators.object_generator import RG_ObjectGenerator
 from roadGen.generators.road_generator import RG_RoadGenerator
 from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
-from roadGen.utils.collection_management import count_objects_in_collections, crossing_curves, crossing_points
-from roadGen.utils.curve_management import visible_curves
+from roadGen.utils.collection_management import count_objects_in_collections, get_crossing_curves, get_crossing_points
+from roadGen.utils.curve_management import get_visible_curves
 
 
 class RG_RoadNetGenerator:
@@ -21,7 +21,7 @@ class RG_RoadNetGenerator:
             graph_to_net_generator = RG_GraphToNetGenerator(self.graph)
             graph_to_net_generator.generate()
 
-        curves = visible_curves()
+        curves = get_visible_curves()
 
         start = time()
 
@@ -59,33 +59,33 @@ class RG_RoadNetGenerator:
         sidewalk_generator = RG_SidewalkGenerator(offset=offset)
         add_geometry_and_measure_time(sidewalk_generator, roads, "sidewalk")
 
-        # Visualize objects in Blender
-        object_generator = RG_ObjectGenerator(["Street Lamp", "Traffic Light", "Traffic Sign"])
-        add_geometry_and_measure_time(object_generator, roads, "object")
-
         # Visualize crossroads in Blender
         print("\n- Starting generation of crossroads -")
 
         t = time()
 
-        crossroad_points = crossing_points()
+        crossroad_points = get_crossing_points()
         crossroad_generator = RG_CrossroadGenerator()
 
         for crossroad_point in crossroad_points:
             # Get the original curves to generate the crossroad as such to check if there are more than one
-            curves = crossing_curves(crossroad_point)
+            curves = get_crossing_curves(crossroad_point)
 
             if len(curves) > 1:
                 crossroad_generator.add_geometry(curves, crossroad_point)
 
                 # Get the curves of the crossroad to generate kerbs and sidewalks
-                curves = crossing_curves(crossroad_point, True)
+                curves = get_crossing_curves(crossroad_point, True)
 
                 for curve in curves:
                     kerb_generator.add_geometry(curve=curve)
                     sidewalk_generator.add_geometry(curve=curve)
 
         print(f"Crossroad generation ({len(crossroad_points)} in total) completed in {time() - t:.2f}s")
+
+        # Visualize objects in Blender
+        object_generator = RG_ObjectGenerator(["Street Lamp", "Street Name Sign", "Traffic Light", "Traffic Sign"])
+        add_geometry_and_measure_time(object_generator, roads, "object")
 
         print(f"\n--- Overall road net generation time: {time() - start:.2f}s ---")
 

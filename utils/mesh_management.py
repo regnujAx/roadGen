@@ -6,7 +6,8 @@ import random
 from mathutils import bvhtree, kdtree, Vector
 
 from roadGen.road import RG_Road
-from roadGen.utils.collection_management import link_to_collection, objects_from_subcollections_in_collection_by_name
+from roadGen.utils.collection_management import get_objects_from_subcollections_in_collection_by_name, link_to_collection
+from roadGen.utils.curve_management import get_closest_curve_point, get_closest_point
 
 
 def add_line_following_mesh(mesh_name: str):
@@ -111,6 +112,8 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     child_collection_name = None
     collection_name = object_template.name
 
+    # It is necessary to check the individual collections,
+    # as some object templates have an index as a suffix to distinguish between the different versions
     if "Traffic Light" in collection_name:
         # Add an 's' to the collection name to make it different to the template
         child_collection_name = collection_name + "s"
@@ -118,6 +121,9 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     elif "Traffic Sign" in collection_name:
         child_collection_name = collection_name + "s"
         collection_name = "Traffic Signs"
+    elif "Street Name Sign" in collection_name:
+        child_collection_name = collection_name + "s"
+        collection_name = "Street Name Signs"
     else:
         collection_name = collection_name + "s"
 
@@ -133,7 +139,7 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
         child_copy.parent = object_copy
         child_copy.matrix_parent_inverse = child.matrix_parent_inverse
 
-        if "Traffic Light" in collection_name or "Traffic Sign" in collection_name:
+        if "Traffic Light" in collection_name or "Traffic Sign" in collection_name or "Street Name Sign" in collection_name:
             link_to_collection(child_copy, child_collection_name)
         else:
             link_to_collection(child_copy, collection_name)
@@ -148,8 +154,8 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
 
 
 def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: float, height: float):
-    line_mesh = bpy.data.objects.get(f"Line_Mesh_{road.curve.name}_{side}")
-    m = line_mesh.matrix_world
+    curve_name = road.curve.name
+    line_mesh = bpy.data.objects.get(f"Line_Mesh_{curve_name}_{side}")
 
     # Create a BMesh from the line mesh for edge length calculation
     mesh_eval_data = line_mesh.data
@@ -158,6 +164,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
     total_length = line_mesh_length(bm_line)
 
     counter = 0
+    direction = None
     position = None
     reference_direction = None
     use_reference_direction = False
@@ -166,12 +173,9 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
     sections = round(total_length / distance)
 
     if "Traffic Sign" in object_name:
-        traffic_signs_templates = objects_from_subcollections_in_collection_by_name("Templates", "Traffic Sign")
+        traffic_sign_templates = get_objects_from_subcollections_in_collection_by_name("Templates", "Traffic Sign")
 
         use_reference_direction = True
-
-        # Adjust the position offset for traffic signs
-        offset /= 3
 
         # Get a random number of traffic signs
         number = random.randint(0, int(total_length / distance))
@@ -182,6 +186,9 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         else:
             positions = [random.uniform(2, total_length - 2) for _ in range(number)]
             positions.sort()
+
+        # Adjust the position offset for the traffic sign
+        offset /= 3
     elif "Traffic Light" in object_name:
         # Check for turning lane and add an additional road lane if there is one
         lanes_number = road.curve.get(f"{side} Lanes")
@@ -197,10 +204,45 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         if lanes_number == 1:
             use_reference_direction = True
 
-        # Adjust the position offset for traffic lights
-        offset /= 4
-
         positions = [1.0]
+
+        # Adjust the position offset for the traffic light
+        offset /= 4
+    elif "Street Name Sign" in object_name:
+        if road.right_neighbour_curve and side == "Right":
+            # Set the direction to the negative y-axis, as we know that the street name sign template has this direction
+            # (the calculation with its children locations leads to incorrect results)
+            direction = Vector((0.0, -1.0, 0.0))
+
+            # Get the correct template and crossroad curve
+            roads_number = 2 if road.right_neighbour_curve else 1
+            object_template = bpy.data.objects.get(f"{object_name} {roads_number}")
+            crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_name}_{road.right_neighbour_curve.name}")
+
+            # Get the correct right curve (left and right could be swapped because it depends on the point of view)
+            curve = road.get_right_curve()
+            curve_point = get_closest_curve_point(curve, crossroad_curve.matrix_world.translation)
+
+            # Calculate the reference direction (the direction in which the sign should be rotated)
+            m = curve.matrix_world
+            reference_direction = m @ curve_point.co - m @ curve_point.handle_left
+
+            # Get the corresponding line mesh
+            line_mesh = bpy.data.objects.get(f"Line_Mesh_{crossroad_curve.name}")
+
+            # Create a BMesh from the line mesh for edge length calculation
+            mesh_eval_data = line_mesh.data
+            bm_line = bmesh.new()
+            bm_line.from_mesh(mesh_eval_data)
+            total_length = line_mesh_length(bm_line)
+
+            # Set the mid of the line mesh as the position for the sign
+            positions = [total_length / 2]
+
+            # Adjust the position offset for the street name sign
+            offset *= -1
+        else:
+            return
     else:
         # Get the template for other objects
         object_template = bpy.data.objects.get(object_name)
@@ -215,6 +257,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
     length = 0
 
     current_distance = positions.pop(0)
+    m = line_mesh.matrix_world
 
     # Iterate over all line mesh edges to find the mesh positions to add the objects
     for edge in bm_line.edges:
@@ -258,15 +301,15 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
 
             # Select a random traffic sign template
             if "Traffic Sign" in object_name:
-                index = random.randint(0, len(traffic_signs_templates) - 1)
-                object_template = traffic_signs_templates[index]
+                index = random.randint(0, len(traffic_sign_templates) - 1)
+                object_template = traffic_sign_templates[index]
 
             if use_reference_direction:
                 reference_direction = vec
 
             # Add an object at the shifted position and rotate it
             object = add_object_at_position(object_template, shifted_position)
-            rotate_object(object, position, reference_direction)
+            rotate_object(object, position, direction, reference_direction)
 
             # Set the height correctly
             if object.location.z == 0.0:
@@ -301,36 +344,6 @@ def calculate_optimal_distance(length: float, minimum: float):
     number = length // minimum
 
     return length if number == 0 else length / number
-
-
-def closest_curve_point(curve: bpy.types.Object, reference_point: Vector, in_global_co: bool = False):
-    # Get the curve end points in world space
-    m = curve.matrix_world
-    first_curve_point = curve.data.splines[0].bezier_points[0]
-    last_curve_point = curve.data.splines[0].bezier_points[-1]
-    first_curve_point_co = m @ first_curve_point.co
-    last_curve_point_co = m @ last_curve_point.co
-
-    point = closest_point([first_curve_point_co, last_curve_point_co], reference_point)
-
-    if in_global_co:
-        return first_curve_point_co if point == first_curve_point_co else last_curve_point_co
-
-    return first_curve_point if point == first_curve_point_co else last_curve_point
-
-
-def closest_point(points: list, reference_point: Vector):
-    closest_point = points[0]
-
-    for i in range(len(points) - 1):
-        point = points[i+1]
-        vector_1 = closest_point - reference_point
-        vector_2 = point - reference_point
-
-        if vector_2.length < vector_1.length:
-            closest_point = point
-
-    return closest_point
 
 
 def create_kdtree(vertices: list, size: int):
@@ -446,11 +459,44 @@ def find_closest_points(list: list, reference_point: Vector, find_all: bool = Tr
     num_vertices = len(list)
     kd = create_kdtree(list, num_vertices)
     n = num_vertices if find_all else 1
+
     # Sort the points by distance to the reference point and return the nearest point or all
     return kd.find_n(reference_point, n)
 
 
-def intersecting_meshes(meshes: list):
+def get_furthest_child_location(object: bpy.types.Object, by_vertex: bool):
+    furthest_child_location = None
+    max_distance = 0.0
+    object_location = object.matrix_world.translation
+
+    # Find the furthest child from the original location of the object
+    for child in object.children:
+        if child.type == 'MESH':
+            child_global_location = child.matrix_world.translation
+
+            # If necessary, iterate over all vertices of the child
+            if by_vertex:
+                vertices = child.data.vertices
+                list = []
+
+                for vertex in vertices:
+                    global_vertex_pos = child.matrix_world @ vertex.co
+                    global_vertex_pos.z = 0.0
+                    list.append(global_vertex_pos)
+            else:
+                list = [child_global_location]
+
+            for element in list:
+                distance = (element - object_location).length
+
+                if distance > max_distance:
+                    max_distance = distance
+                    furthest_child_location = child_global_location
+
+    return furthest_child_location
+
+
+def get_intersecting_meshes(meshes: list):
     intersecting_meshes = {}
 
     # For each mesh, check whether it intersects with every other mesh
@@ -502,54 +548,25 @@ def line_mesh_length(line_mesh: bmesh):
     return total_length
 
 
-def rotate_object(object: bpy.types.Object, reference_point: Vector, reference_direction: Vector = None):
+def rotate_object(
+        object: bpy.types.Object, reference_point: Vector, direction: Vector = None, reference_direction: Vector = None):
     furthest_child_location = None
-    max_distance = 0.0
     object_location = object.matrix_world.translation
+    by_vertex = False if reference_direction else True
 
-    # Rotate a the object in a different way if a reference direction is passed
-    if reference_direction:
-        reference_direction.normalize()
-
-        # Find the furthest child object from the original location of the object
-        for child in object.children:
-            child_global_location = child.matrix_world.translation
-            distance = (child_global_location - object_location).length
-
-            if distance > max_distance:
-                max_distance = distance
-                furthest_child_location = child_global_location
-
-        # Get the direction from the object to its child, shifted to the reference point (for the later angle calculation),
-        # as the object has a different position than the reference point, but for the angle calculation between two vectors,
-        # both must have the same starting point
-        shift = reference_point - object_location
-        shifted_location = furthest_child_location + shift
-        direction = shifted_location - reference_point
-    else:
-        # Find the furthest vertex of all children and remember the corresponding child location
-        for child in object.children:
-            if child.type == 'MESH':
-                vertices = child.data.vertices
-
-                for vertex in vertices:
-                    global_vertex_pos = child.matrix_world @ vertex.co
-                    global_vertex_pos.z = 0.0
-
-                    distance = (global_vertex_pos - object_location).length
-                    if distance > max_distance:
-                        max_distance = distance
-                        furthest_child_location = child.matrix_world.translation
-
-        # Get the direction from the object to this furthest child
+    if not direction:
+        # If no direction is passed, calculate it with the furthest child of the object
+        furthest_child_location = get_furthest_child_location(object, by_vertex)
         direction = furthest_child_location - object_location
-
-        # Get the reference vector between the object and the reference point
-        reference_direction = reference_point - object_location
-        reference_direction.normalize()
 
     direction.z = 0.0
     direction.normalize()
+
+    if not reference_direction:
+        # If no reference direction is passed, get the reference vector between the object and the reference point
+        reference_direction = reference_point - object_location
+
+    reference_direction.normalize()
 
     # Calculate the dot product of the two vectors and their lengths
     dot_product = direction.dot(reference_direction)

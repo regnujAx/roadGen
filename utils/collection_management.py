@@ -38,7 +38,7 @@ def count_objects_in_collections(collection_names: list, with_subcollections: bo
     return counter
 
 
-def crossing_curves(crossroad_point: bpy.types.Object, with_crossroad_curves: bool = False):
+def get_crossing_curves(crossroad_point: bpy.types.Object, with_crossroad_curves: bool = False):
     curves = []
     curves_number = crossroad_point.get("Number of Curves")
 
@@ -67,8 +67,8 @@ def crossing_curves(crossroad_point: bpy.types.Object, with_crossroad_curves: bo
     return curves
 
 
-def crossing_points():
-    markers = objects_from_collection("Crossing Points")
+def get_crossing_points():
+    markers = get_objects_from_collection("Crossing Points")
     return [marker for marker in markers if marker.visible_get()]
 
 
@@ -90,7 +90,7 @@ def delete_collections_with_objects(collection_names: list):
             delete_collection_and_subcollections(collection)
 
 
-def first_and_last_objects_from_collections(collection_names: list, number_of_objects: int):
+def get_first_and_last_objects_from_collections(collection_names: list, number_of_objects: int):
     objects = []
     for collection_name in collection_names:
         collection = bpy.data.collections[collection_name]
@@ -100,7 +100,7 @@ def first_and_last_objects_from_collections(collection_names: list, number_of_ob
     return objects
 
 
-def objects_from_subcollections_in_collection_by_name(collection_name: str, filter_name: str):
+def get_objects_from_subcollections_in_collection_by_name(collection_name: str, filter_name: str):
     objects = []
     collection = bpy.data.collections.get(collection_name)
 
@@ -132,7 +132,7 @@ def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_colle
     collection.objects.link(mesh)
 
 
-def objects_from_collection(collection_name: str, subcollections: bool = False):
+def get_objects_from_collection(collection_name: str, subcollections: bool = False):
     collection = bpy.data.collections.get(collection_name)
 
     if collection:

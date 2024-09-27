@@ -2,14 +2,48 @@ import bpy
 
 from mathutils import Vector
 
-from roadGen.utils.mesh_management import closest_curve_point
+
+def get_closest_curve_point(curve: bpy.types.Object, reference_point: Vector, in_global_co: bool = False):
+    # Get the curve end points in world space
+    m = curve.matrix_world
+    first_curve_point = curve.data.splines[0].bezier_points[0]
+    last_curve_point = curve.data.splines[0].bezier_points[-1]
+    first_curve_point_co = m @ first_curve_point.co
+    last_curve_point_co = m @ last_curve_point.co
+
+    point = get_closest_point([first_curve_point_co, last_curve_point_co], reference_point)
+
+    if in_global_co:
+        return first_curve_point_co if point == first_curve_point_co else last_curve_point_co
+
+    return first_curve_point if point == first_curve_point_co else last_curve_point
+
+
+def get_closest_point(points: list, reference_point: Vector):
+    closest_point = points[0]
+
+    for i in range(len(points) - 1):
+        point = points[i+1]
+        vector_1 = closest_point - reference_point
+        vector_2 = point - reference_point
+
+        if vector_2.length < vector_1.length:
+            closest_point = point
+
+    return closest_point
+
+
+def get_visible_curves():
+    # Get all visible (not hidden) curves
+    objects = bpy.context.scene.objects
+    return [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]
 
 
 def sort_curves(curves: list, reference_point: Vector):
     direction_vectors = []
     # Calculate for each curve a direction vector from curve to reference point
     for curve in curves:
-        curve_point_co = closest_curve_point(curve, reference_point, True)
+        curve_point_co = get_closest_curve_point(curve, reference_point, True)
         direction_vector = curve_point_co - reference_point
 
         # Save each curve and its direction vector
@@ -40,9 +74,3 @@ def sort_curves(curves: list, reference_point: Vector):
     sorted_curves = [curve for curve, _ in vectors_and_angles]
 
     return sorted_curves
-
-
-def visible_curves():
-    # Get all visible (not hidden) curves
-    objects = bpy.context.scene.objects
-    return [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]

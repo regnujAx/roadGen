@@ -4,8 +4,9 @@ from mathutils import Vector
 
 from roadGen.generators.geometry_generator import RG_GeometryGenerator
 from roadGen.road import RG_Road
-from roadGen.utils.mesh_management import apply_transform, closest_curve_point, create_mesh_from_vertices, curve_to_mesh
-from roadGen.utils.collection_management import crossing_curves, crossing_points, link_to_collection
+from roadGen.utils.curve_management import get_closest_curve_point
+from roadGen.utils.mesh_management import apply_transform, create_mesh_from_vertices, curve_to_mesh
+from roadGen.utils.collection_management import get_crossing_curves, get_crossing_points, link_to_collection
 
 
 class RG_RoadGenerator(RG_GeometryGenerator):
@@ -48,12 +49,14 @@ def add_road_lanes(road: RG_Road):
         if side == "Left":
             reverse = True
 
+        turning_lane_is_required = is_turning_lane_required(road, side)
+
         # If there is a turning lane distance and a turning lane is required, the index of the bezier point is calculated
         # that represent the start for the tuning lane
-        if side == "Left" and road.left_turning_lane_distance and is_turning_lane_required(road, side):
+        if side == "Left" and road.left_turning_lane_distance and turning_lane_is_required:
             turning_lane_start_index = calculate_turning_lane_start_index(bezier_points, road.left_turning_lane_distance, reverse)
             road.has_left_turning_lane = True
-        elif side == "Right" and road.right_turning_lane_distance and is_turning_lane_required(road, side):
+        elif side == "Right" and road.right_turning_lane_distance and turning_lane_is_required:
             turning_lane_start_index = calculate_turning_lane_start_index(bezier_points, road.right_turning_lane_distance, reverse)
             road.has_right_turning_lane = True
         else:
@@ -189,55 +192,67 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
 
 
 def is_turning_lane_required(road, side):
-    crossroad_points = crossing_points()
+    crossroad_points = get_crossing_points()
 
     # Iterate over all crossroad points to find the point that belongs to the current road
     for crossroad_point in crossroad_points:
-        curves = crossing_curves(crossroad_point)
+        curves = get_crossing_curves(crossroad_point)
         curve_names = [curve.name for curve in curves]
         curves_number = len(curves)
         curve = road.curve
+
+        if not road.right_neighbour_curve:
+            right_neighbour_curve = get_right_neighbour_curve_of_curve(curve, crossroad_point, curves_number, side)
+            road.right_neighbour_curve = right_neighbour_curve
 
         # Return False if the current road is a major road that splits into two roads so that no turning lane is required
         if curves_number - 1 == 2 and curve.get("Major"):
             return False
 
-        # Only possibly return True if there are more than two roads that belong to the crossroad point
-        # and if we found the correct crossroad point
-        if curves_number > 2 and curve.name in curve_names:
-            reference_point = crossroad_point.location
-            point = closest_curve_point(curve, reference_point, True)
-            first_point = curve.matrix_world @ curve.data.splines[0].bezier_points[0].co
-            last_point = curve.matrix_world @ curve.data.splines[0].bezier_points[-1].co
-
-            # Only possibly return True if it is the correct side
-            if side == "Left" and point == last_point or side == "Right" and point == first_point:
-                # Get the normalized direction vector for the curve point and the crossroad point
-                direction = reference_point - point
-                direction.normalize()
-
-                # Iterate over all curves that belong to the crossroad point
-                # to find the index of the road/curve in the properties of the crossroad point
-                for i in range(1, curves_number + 1):
-                    crv_name = crossroad_point.get(f"Curve {i}")
-                    crv = bpy.data.objects.get(crv_name)
-
-                    # Get the right neighbour of the current road/curve
-                    if crv.name == curve.name:
-                        neighbour_index = i + 1 if i < curves_number else 1
-                        right_neighbour_curve_name = crossroad_point.get(f"Curve {neighbour_index}")
-                        right_neighbour_curve = bpy.data.objects.get(right_neighbour_curve_name)
-
-                        # Get the normalized direction vector for the curve point of the right neighbour and the crossroad point
-                        right_neighbour_point = closest_curve_point(right_neighbour_curve, reference_point, True)
-                        right_neighbour_direction = reference_point - right_neighbour_point
-                        right_neighbour_direction.normalize()
-
-                        # Calculate the cross product between the two direction vectors to check
-                        # whether the right neighbour is really right to the current road and not, for example, straight
-                        cross_prod = right_neighbour_direction.cross(direction)
-
-                        if cross_prod.z < 0:
-                            return True
+        # Only return True if there are more than two roads that belong to the crossroad point,
+        # if we found the correct crossroad point and if there is a right neighbour curve for the current road/curve
+        if curves_number > 2 and curve.name in curve_names and road.right_neighbour_curve:
+            return True
 
     return False
+
+
+def get_right_neighbour_curve_of_curve(
+        curve: bpy.types.Object, crossroad_point: bpy.types.Object, total_number_of_curves: int, side: str):
+    # Iterate over all curves that belong to the passed crossroad point
+    # to find the index of the passed curve in the properties of the crossroad point
+    for i in range(1, total_number_of_curves + 1):
+        crv_name = crossroad_point.get(f"Curve {i}")
+        crv = bpy.data.objects.get(crv_name)
+
+        # Get the right neighbour of the passed curve when we reached the correct curve in properties of the crossroad point
+        if crv.name == curve.name:
+            neighbour_index = i + 1 if i < total_number_of_curves else 1
+            right_neighbour_curve_name = crossroad_point.get(f"Curve {neighbour_index}")
+            right_neighbour_curve = bpy.data.objects.get(right_neighbour_curve_name)
+
+            if right_neighbour_curve:
+                reference_point = crossroad_point.location
+                curve_point = get_closest_curve_point(curve, reference_point, True)
+                first_point = curve.matrix_world @ curve.data.splines[0].bezier_points[0].co
+                last_point = curve.matrix_world @ curve.data.splines[0].bezier_points[-1].co
+
+                # Only possibly return the right neighbour curve if it is the correct side
+                if side == "Left" and curve_point == last_point or side == "Right" and curve_point == first_point:
+                    # Get the normalized direction vector for the curve point and the crossroad point
+                    direction = reference_point - curve_point
+                    direction.normalize()
+
+                    # Get the normalized direction vector for the curve point of the right neighbour and the crossroad point
+                    right_neighbour_point = get_closest_curve_point(right_neighbour_curve, reference_point, True)
+                    right_neighbour_direction = reference_point - right_neighbour_point
+                    right_neighbour_direction.normalize()
+
+                    # Calculate the cross product between the two direction vectors to check
+                    # whether the right neighbour is really right to the current road and not, for example, straight
+                    cross_prod = right_neighbour_direction.cross(direction)
+
+                    # Round the z-axis of the cross product to obtain also a not quite exact right-hand curve
+                    # (or to avoid floating point issues)
+                    if round(cross_prod.z, 2) < 0:
+                        return bpy.data.objects.get(right_neighbour_curve_name)

@@ -5,6 +5,7 @@ import math
 from mathutils import Vector
 
 from roadGen.utils.curve_management import sort_curves
+from roadGen.utils.mesh_management import set_origin
 
 
 class RG_GraphToNetGenerator:
@@ -21,8 +22,8 @@ class RG_GraphToNetGenerator:
 # ------------------------------------------------------------------------
 
 
-def intersection_with_circle(first_point: Vector, second_point: Vector,
-                             circle_midpoint: Vector, circle_radius: float):
+def get_intersection_with_circle(
+        first_point: Vector, second_point: Vector, circle_midpoint: Vector, circle_radius: float):
     vec = second_point - first_point
 
     # Coefficients of the quadratic equation for intersection calculation
@@ -139,7 +140,7 @@ def visualize_curves(graph):
                                 # Add a new point with updated coordinates
                                 # when a point is reached that is far enough away from the begin/end point
                                 # and when it is not too close to the last added point
-                                new_co = intersection_with_circle(previous_edge_point, edge_point, point, crossroad_size)
+                                new_co = get_intersection_with_circle(previous_edge_point, edge_point, point, crossroad_size)
 
                                 last_added_point = edge_points_copy[0] if x == 0 else edge_points_copy[-1]
 
@@ -151,6 +152,13 @@ def visualize_curves(graph):
                 # Skip edges with less than two points
                 if len(edge_points_copy) < 2:
                     continue
+                elif len(edge_points_copy) == 2:
+                    first_point = edge_points_copy[0].to_3d()
+                    last_point = edge_points_copy[-1].to_3d()
+
+                    # Also skip resized edges that are too small
+                    if (last_point - first_point).length < crossroad_size:
+                        continue
 
                 curve_spline.bezier_points.add(len(edge_points_copy) - 1)
                 obj = bpy.data.objects.new(f"Curve_{str(index).zfill(3)}", curve)
@@ -162,10 +170,7 @@ def visualize_curves(graph):
                     curve_spline.bezier_points[i].handle_right_type = 'VECTOR'
                     curve_spline.bezier_points[i].handle_left_type = 'VECTOR'
 
-                # Update the origin
-                obj.select_set(True)
-                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
-                obj.select_set(False)
+                set_origin(obj)
 
                 curves[edge] = obj
 
