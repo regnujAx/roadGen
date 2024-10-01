@@ -72,9 +72,9 @@ def add_road_lanes(road: RG_Road):
         bpy.context.view_layer.update()
 
         if side == "Left":
-            road.curve_left = new_curve
+            road.left_curve = new_curve
         else:
-            road.curve_right = new_curve
+            road.right_curve = new_curve
 
         # Create a line mesh for the created side curve
         side_curve = bpy.data.objects.get(new_curve.name)
@@ -191,7 +191,7 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
     return curve
 
 
-def is_turning_lane_required(road, side):
+def is_turning_lane_required(road: RG_Road, side: str):
     crossroad_points = get_crossing_points()
 
     # Iterate over all crossroad points to find the point that belongs to the current road
@@ -201,9 +201,14 @@ def is_turning_lane_required(road, side):
         curves_number = len(curves)
         curve = road.curve
 
-        if not road.right_neighbour_curve:
-            right_neighbour_curve = get_right_neighbour_curve_of_curve(curve, crossroad_point, curves_number, side)
-            road.right_neighbour_curve = right_neighbour_curve
+        right_neighbour = get_right_neighbour_curve_of_curve(curve, crossroad_point, curves_number, side)
+
+        if side == "Left":
+            if not road.right_neighbour_of_left_curve:
+                road.right_neighbour_of_left_curve = right_neighbour
+        else:
+            if not road.right_neighbour_of_right_curve:
+                road.right_neighbour_of_right_curve = right_neighbour
 
         # Return False if the current road is a major road that splits into two roads so that no turning lane is required
         if curves_number - 1 == 2 and curve.get("Major"):
@@ -211,8 +216,9 @@ def is_turning_lane_required(road, side):
 
         # Only return True if there are more than two roads that belong to the crossroad point,
         # if we found the correct crossroad point and if there is a right neighbour curve for the current road/curve
-        if curves_number > 2 and curve.name in curve_names and road.right_neighbour_curve:
-            return True
+        if curves_number > 2 and curve.name in curve_names:
+            if side == "Left" and road.right_neighbour_of_left_curve or side == "Right" and road.right_neighbour_of_right_curve:
+                return True
 
     return False
 
@@ -251,8 +257,10 @@ def get_right_neighbour_curve_of_curve(
                     # Calculate the cross product between the two direction vectors to check
                     # whether the right neighbour is really right to the current road and not, for example, straight
                     cross_prod = right_neighbour_direction.cross(direction)
-
+                    print("curve:", curve.name)
+                    print("right_neighbour_curve:", right_neighbour_curve.name)
+                    print("cross_prod:", cross_prod)
                     # Round the z-axis of the cross product to obtain also a not quite exact right-hand curve
                     # (or to avoid floating point issues)
-                    if round(cross_prod.z, 2) < 0:
+                    if round(cross_prod.z, 1) < 0:
                         return bpy.data.objects.get(right_neighbour_curve_name)

@@ -20,10 +20,10 @@ class RG_KerbGenerator(RG_GeometryGenerator):
             if not road.kerb_mesh_template:
                 road.kerb_mesh_template = self.mesh_template
 
-            if side == "Left" and road.curve_left:
-                curve = road.curve_left
-            elif side == "Right" and road.curve_right:
-                curve = road.curve_right
+            if side == "Left" and road.left_curve:
+                curve = road.left_curve
+            elif side == "Right" and road.right_curve:
+                curve = road.right_curve
 
             index = 1
 

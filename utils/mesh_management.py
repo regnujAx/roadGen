@@ -209,40 +209,44 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         # Adjust the position offset for the traffic light
         offset /= 4
     elif "Street Name Sign" in object_name:
-        if road.right_neighbour_curve and side == "Right":
-            # Set the direction to the negative y-axis, as we know that the street name sign template has this direction
-            # (the calculation with its children locations leads to incorrect results)
-            direction = Vector((0.0, -1.0, 0.0))
-
-            # Get the correct template and crossroad curve
-            roads_number = 2 if road.right_neighbour_curve else 1
-            object_template = bpy.data.objects.get(f"{object_name} {roads_number}")
-            crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_name}_{road.right_neighbour_curve.name}")
-
-            # Get the correct right curve (left and right could be swapped because it depends on the point of view)
-            curve = road.get_right_curve()
-            curve_point = get_closest_curve_point(curve, crossroad_curve.matrix_world.translation)
-
-            # Calculate the reference direction (the direction in which the sign should be rotated)
-            m = curve.matrix_world
-            reference_direction = m @ curve_point.co - m @ curve_point.handle_left
-
-            # Get the corresponding line mesh
-            line_mesh = bpy.data.objects.get(f"Line_Mesh_{crossroad_curve.name}")
-
-            # Create a BMesh from the line mesh for edge length calculation
-            mesh_eval_data = line_mesh.data
-            bm_line = bmesh.new()
-            bm_line.from_mesh(mesh_eval_data)
-            total_length = line_mesh_length(bm_line)
-
-            # Set the mid of the line mesh as the position for the sign
-            positions = [total_length / 2]
-
-            # Adjust the position offset for the street name sign
-            offset *= -1
+        if road.right_neighbour_of_left_curve and side == "Left":
+            right_neighbour_name = road.right_neighbour_of_left_curve.name
+        elif road.right_neighbour_of_right_curve and side == "Right":
+            right_neighbour_name = road.right_neighbour_of_right_curve.name
         else:
             return
+
+        # Set the direction to the negative y-axis, as we know that the street name sign template has this direction
+        # (the calculation with its children locations leads to incorrect results)
+        direction = Vector((0.0, -1.0, 0.0))
+
+        # Get the correct template and crossroad curve
+        roads_number = 2 if road.right_neighbour_of_left_curve or road.right_neighbour_of_right_curve else 1
+        object_template = bpy.data.objects.get(f"{object_name} {roads_number}")
+        crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_name}_{right_neighbour_name}")
+
+        # Get the correct right curve (left and right could be swapped because it depends on the point of view)
+        curve = road.get_right_curve(side)
+        curve_point = get_closest_curve_point(curve, crossroad_curve.matrix_world.translation)
+
+        # Calculate the reference direction (the direction in which the sign should be rotated)
+        m = curve.matrix_world
+        reference_direction = m @ curve_point.co - m @ curve_point.handle_left
+
+        # Get the corresponding line mesh
+        line_mesh = bpy.data.objects.get(f"Line_Mesh_{crossroad_curve.name}")
+
+        # Create a BMesh from the line mesh for edge length calculation
+        mesh_eval_data = line_mesh.data
+        bm_line = bmesh.new()
+        bm_line.from_mesh(mesh_eval_data)
+        total_length = line_mesh_length(bm_line)
+
+        # Set the mid of the line mesh as the position for the sign
+        positions = [total_length / 2]
+
+        # Adjust the position offset for the street name sign
+        offset *= -1
     else:
         # Get the template for other objects
         object_template = bpy.data.objects.get(object_name)
