@@ -62,6 +62,7 @@ class RG_RoadNetGenerator:
         # Visualize crossroads in Blender
         print("\n- Starting generation of crossroads -")
 
+        counter = 0
         t = time()
 
         crossroad_points = get_crossing_points()
@@ -80,6 +81,11 @@ class RG_RoadNetGenerator:
                 for curve in curves:
                     kerb_generator.add_geometry(curve=curve)
                     sidewalk_generator.add_geometry(curve=curve)
+
+                counter += 1
+
+            if counter % 10 == 0:
+                print(f"\t{counter} crossroads added")
 
         print(f"Crossroad generation ({len(crossroad_points)} in total) completed in {time() - t:.2f}s")
 

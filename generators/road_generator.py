@@ -176,7 +176,8 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
 
     # Calculate for each index the new (shifted) coordinates for each bezier point of the new curve
     for i in indices:
-        vec = bezier_points[i].handle_right - bezier_points[i].co
+        vec = (bezier_points[i].handle_left - bezier_points[i].co if reverse
+               else bezier_points[i].handle_right - bezier_points[i].co)
         vec.normalize()
 
         # Invert the orthogonal vector for the right side
@@ -201,6 +202,9 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
             offset = lane_width * (lane_number + 1) - (next_vec.length / widening_vec.length * lane_width)
         else:
             offset = lane_width * lane_number
+
+        if reverse:
+            offset *= -1
 
         shift = orthogonal_vector * offset
 
@@ -236,32 +240,35 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
 
 def is_turning_lane_required(road: RG_Road, side: str):
     crossroad_points = get_crossing_points()
+    curve = road.curve
 
     # Iterate over all crossroad points to find the point that belongs to the current road
     for crossroad_point in crossroad_points:
         curves = get_crossing_curves(crossroad_point)
         curve_names = [curve.name for curve in curves]
-        curves_number = len(curves)
-        curve = road.curve
 
-        right_neighbour = get_right_neighbour_curve_of_curve(curve, crossroad_point, curves_number, side)
+        if curve.name in curve_names:
+            curves_number = len(curves)
 
-        if side == "Left":
-            if not road.right_neighbour_of_left_curve:
-                road.right_neighbour_of_left_curve = right_neighbour
-        else:
-            if not road.right_neighbour_of_right_curve:
-                road.right_neighbour_of_right_curve = right_neighbour
+            right_neighbour = get_right_neighbour_curve_of_curve(curve, crossroad_point, curves_number, side)
 
-        # Return False if the current road is a major road that splits into two roads so that no turning lane is required
-        if curves_number - 1 == 2 and curve.get("Major"):
-            return False
+            if right_neighbour and right_neighbour.name in curve_names:
+                if side == "Left" and not road.right_neighbour_of_left_curve:
+                    road.right_neighbour_of_left_curve = right_neighbour
+                elif side == "Right" and not road.right_neighbour_of_right_curve:
+                    road.right_neighbour_of_right_curve = right_neighbour
 
-        # Only return True if there are more than two roads that belong to the crossroad point,
-        # if we found the correct crossroad point and if there is a right neighbour curve for the current road/curve
-        if curves_number > 2 and curve.name in curve_names:
-            if side == "Left" and road.right_neighbour_of_left_curve or side == "Right" and road.right_neighbour_of_right_curve:
-                return True
+                # Return False if the current road is a major road that splits into two roads
+                # so that no turning lane is required
+                if curves_number - 1 == 2 and curve.get("Major"):
+                    return False
+
+                # Only return True if there are more than two roads that belong to the crossroad point,
+                # if we found the correct crossroad point and if there is a right neighbour curve for the current road/curve
+                if (curves_number > 2 and curve.name in curve_names and
+                        (side == "Left" and road.right_neighbour_of_left_curve or
+                         side == "Right" and road.right_neighbour_of_right_curve)):
+                    return True
 
     return False
 
@@ -300,9 +307,7 @@ def get_right_neighbour_curve_of_curve(
                     # Calculate the cross product between the two direction vectors to check
                     # whether the right neighbour is really right to the current road and not, for example, straight
                     cross_prod = right_neighbour_direction.cross(direction)
-                    print("curve:", curve.name)
-                    print("right_neighbour_curve:", right_neighbour_curve.name)
-                    print("cross_prod:", cross_prod)
+
                     # Round the z-axis of the cross product to obtain also a not quite exact right-hand curve
                     # (or to avoid floating point issues)
                     if round(cross_prod.z, 1) < 0:

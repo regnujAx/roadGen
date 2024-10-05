@@ -38,6 +38,24 @@ def count_objects_in_collections(collection_names: list, with_subcollections: bo
     return counter
 
 
+def delete_collection_and_subcollections(collection):
+    for subcollection in collection.children:
+        delete_collection_and_subcollections(subcollection)
+
+    for obj in collection.objects:
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+    bpy.data.collections.remove(collection)
+
+
+def delete_collections_with_objects(collection_names: list):
+    for collection_name in collection_names:
+        collection = bpy.data.collections.get(collection_name)
+
+        if collection:
+            delete_collection_and_subcollections(collection)
+
+
 def get_crossing_curves(crossroad_point: bpy.types.Object, with_crossroad_curves: bool = False):
     curves = []
     curves_number = crossroad_point.get("Number of Curves")
@@ -72,24 +90,6 @@ def get_crossing_points():
     return [marker for marker in markers if marker.visible_get()]
 
 
-def delete_collection_and_subcollections(collection):
-    for subcollection in collection.children:
-        delete_collection_and_subcollections(subcollection)
-
-    for obj in collection.objects:
-        bpy.data.objects.remove(obj, do_unlink=True)
-
-    bpy.data.collections.remove(collection)
-
-
-def delete_collections_with_objects(collection_names: list):
-    for collection_name in collection_names:
-        collection = bpy.data.collections.get(collection_name)
-
-        if collection:
-            delete_collection_and_subcollections(collection)
-
-
 def get_first_and_last_objects_from_collections(collection_names: list, number_of_objects: int):
     objects = []
     for collection_name in collection_names:
@@ -100,19 +100,19 @@ def get_first_and_last_objects_from_collections(collection_names: list, number_o
     return objects
 
 
-def get_objects_from_subcollections_in_collection_by_name(collection_name: str, filter_name: str):
-    objects = []
+def get_subcollection_names_of_collection_by_name(collection_name: str, filter_name: str):
+    subcollection_names = []
     collection = bpy.data.collections.get(collection_name)
 
     if collection:
         for subcollection in collection.children:
             if filter_name in subcollection.name:
-                objects.extend([obj for obj in subcollection.objects if filter_name in obj.name])
+                subcollection_names.append(subcollection.name)
 
-    return objects
+    return subcollection_names
 
 
-def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_collection_name: str = None):
+def link_to_collection(object: bpy.types.Object, collection_name: str, child_collection_name: str = None):
     collection = bpy.data.collections.get(collection_name)
 
     if collection is None:
@@ -129,7 +129,7 @@ def link_to_collection(mesh: bpy.types.Object, collection_name: str, child_colle
 
         collection = child_collection
 
-    collection.objects.link(mesh)
+    collection.objects.link(object)
 
 
 def get_objects_from_collection(collection_name: str, subcollections: bool = False):

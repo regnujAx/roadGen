@@ -6,8 +6,8 @@ import random
 from mathutils import bvhtree, kdtree, Vector
 
 from roadGen.road import RG_Road
-from roadGen.utils.collection_management import get_objects_from_subcollections_in_collection_by_name, link_to_collection
-from roadGen.utils.curve_management import get_closest_curve_point, get_closest_point
+from roadGen.utils.collection_management import get_subcollection_names_of_collection_by_name, link_to_collection
+from roadGen.utils.curve_management import get_closest_curve_point
 
 
 def add_line_following_mesh(mesh_name: str):
@@ -106,11 +106,26 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     return mesh
 
 
-def add_object_at_position(object_template: bpy.types.Object, position: Vector):
-    # Create a copy of the template and link it to its collection
-    object_copy = object_template.copy()
+def add_object_at_position(collection: bpy.types.Collection, position: Vector):
     child_collection_name = None
-    collection_name = object_template.name
+    collection_name = collection.name
+    original_empty = bpy.data.objects.get(collection_name)
+
+    if original_empty:
+        # Create a copy of the empty object
+        new_empty = original_empty.copy()
+    else:
+        # Create a new empty object if none with the correct name exists
+        new_empty = bpy.data.objects.new(name=collection_name, object_data=None)
+
+    # Create an instance of the passed collection that is referenced in the new empty object
+    # (instead of copying each object in the collection)
+    new_empty.instance_type = 'COLLECTION'
+    new_empty.instance_collection = collection
+
+    # Hide the empty object (the lines) in the viewport and when it is rendered
+    new_empty.show_instancer_for_viewport = False
+    new_empty.show_instancer_for_render = False
 
     # It is necessary to check the individual collections,
     # as some object templates have an index as a suffix to distinguish between the different versions
@@ -127,30 +142,15 @@ def add_object_at_position(object_template: bpy.types.Object, position: Vector):
     else:
         collection_name = collection_name + "s"
 
-    link_to_collection(object_copy, collection_name, child_collection_name)
+    link_to_collection(new_empty, collection_name, child_collection_name)
 
-    # Hide the copy if it is an empty object
-    if object_copy.type == 'EMPTY':
-        object_copy.hide_set(True)
+    # Update the location of the new empty object
+    new_empty.location = position
 
-    # Copy also the children of the object template
-    for child in object_template.children:
-        child_copy = child.copy()
-        child_copy.parent = object_copy
-        child_copy.matrix_parent_inverse = child.matrix_parent_inverse
-
-        if "Traffic Light" in collection_name or "Traffic Sign" in collection_name or "Street Name Sign" in collection_name:
-            link_to_collection(child_copy, child_collection_name)
-        else:
-            link_to_collection(child_copy, collection_name)
-
-    # Update the location of the object copy
-    object_copy.location = position
-
-    # The scene need to be updated so the locations are correct
+    # The scene need to be updated so that the location of the new object is correct
     bpy.context.view_layer.update()
 
-    return object_copy
+    return new_empty
 
 
 def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: float, height: float):
@@ -173,7 +173,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
     sections = round(total_length / distance)
 
     if "Traffic Sign" in object_name:
-        traffic_sign_templates = get_objects_from_subcollections_in_collection_by_name("Templates", "Traffic Sign")
+        traffic_sign_collection_names = get_subcollection_names_of_collection_by_name("Templates", "Traffic Sign")
 
         use_reference_direction = True
 
@@ -198,7 +198,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         if turning_lane_distance and has_turning_lane:
             lanes_number += 1
 
-        object_template = bpy.data.objects.get(f"{object_name} {lanes_number}")
+        collection = bpy.data.collections.get(f"{object_name} {lanes_number}")
 
         # If there is only one lane per side use a reference vector to rotate the corresponding mesh correctly
         if lanes_number == 1:
@@ -220,17 +220,17 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         # (the calculation with its children locations leads to incorrect results)
         direction = Vector((0.0, -1.0, 0.0))
 
-        # Get the correct template and crossroad curve
+        # Get the correct collection and crossroad curve
         roads_number = 2 if road.right_neighbour_of_left_curve or road.right_neighbour_of_right_curve else 1
-        object_template = bpy.data.objects.get(f"{object_name} {roads_number}")
-        crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_name}_{right_neighbour_name}")
+        collection = bpy.data.collections.get(f"{object_name} {roads_number}")
 
         # Get the correct right curve (left and right could be swapped because it depends on the point of view)
         curve = road.get_right_curve(side)
-        curve_point = get_closest_curve_point(curve, crossroad_curve.matrix_world.translation)
 
         # Calculate the reference direction (the direction in which the sign should be rotated)
         m = curve.matrix_world
+        crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_name}_{right_neighbour_name}")
+        curve_point = get_closest_curve_point(curve, crossroad_curve.matrix_world.translation)
         reference_direction = m @ curve_point.co - m @ curve_point.handle_left
 
         # Get the corresponding line mesh
@@ -248,8 +248,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         # Adjust the position offset for the street name sign
         offset *= -1
     else:
-        # Get the template for other objects
-        object_template = bpy.data.objects.get(object_name)
+        collection = bpy.data.collections.get(object_name)
 
         # Calculate the (uniform) positions for the other objects
         positions = [distance * i for i in range(sections + 1)]
@@ -305,15 +304,15 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
 
             # Select a random traffic sign template
             if "Traffic Sign" in object_name:
-                index = random.randint(0, len(traffic_sign_templates) - 1)
-                object_template = traffic_sign_templates[index]
+                index = random.randint(0, len(traffic_sign_collection_names) - 1)
+                collection = bpy.data.collections.get(traffic_sign_collection_names[index])
 
             if use_reference_direction:
                 reference_direction = vec
 
             # Add an object at the shifted position and rotate it
-            object = add_object_at_position(object_template, shifted_position)
-            rotate_object(object, position, direction, reference_direction)
+            object = add_object_at_position(collection, shifted_position)
+            rotate_object(object, collection, position, direction, reference_direction)
 
             # Set the height correctly
             if object.location.z == 0.0:
@@ -468,36 +467,37 @@ def find_closest_points(list: list, reference_point: Vector, find_all: bool = Tr
     return kd.find_n(reference_point, n)
 
 
-def get_furthest_child_location(object: bpy.types.Object, by_vertex: bool):
-    furthest_child_location = None
+def get_furthest_object_in_collection(
+        collection: bpy.types.Collection, reference_object_location: Vector, by_vertex: bool = False):
+    furthest_object_location = None
     max_distance = 0.0
-    object_location = object.matrix_world.translation
 
-    # Find the furthest child from the original location of the object
-    for child in object.children:
-        if child.type == 'MESH':
-            child_global_location = child.matrix_world.translation
+    # Find the object in the collection furthest away from the location of the reference object
+    for object in collection.objects:
+        if object.type == 'MESH':
+            object_global_location = object.matrix_world.translation + reference_object_location
 
-            # If necessary, iterate over all vertices of the child
+            # If necessary, iterate over all vertices of the object
             if by_vertex:
-                vertices = child.data.vertices
+                vertices = object.data.vertices
                 list = []
 
                 for vertex in vertices:
-                    global_vertex_pos = child.matrix_world @ vertex.co
+                    # Translate the vertex into the space of the reference object to calculate the correct distance between them
+                    global_vertex_pos = object.matrix_world @ vertex.co + reference_object_location
                     global_vertex_pos.z = 0.0
                     list.append(global_vertex_pos)
             else:
-                list = [child_global_location]
+                list = [object_global_location]
 
             for element in list:
-                distance = (element - object_location).length
+                distance = (element - reference_object_location).length
 
                 if distance > max_distance:
                     max_distance = distance
-                    furthest_child_location = child_global_location
+                    furthest_object_location = object_global_location
 
-    return furthest_child_location
+    return furthest_object_location
 
 
 def get_intersecting_meshes(meshes: list):
@@ -553,15 +553,16 @@ def line_mesh_length(line_mesh: bmesh):
 
 
 def rotate_object(
-        object: bpy.types.Object, reference_point: Vector, direction: Vector = None, reference_direction: Vector = None):
-    furthest_child_location = None
+        object: bpy.types.Object, collection: bpy.types.Collection, reference_point: Vector,
+        direction: Vector = None, reference_direction: Vector = None):
+    furthest_object_location = None
     object_location = object.matrix_world.translation
     by_vertex = False if reference_direction else True
 
     if not direction:
-        # If no direction is passed, calculate it with the furthest child of the object
-        furthest_child_location = get_furthest_child_location(object, by_vertex)
-        direction = furthest_child_location - object_location
+        # If no direction is passed, calculate it using the furthest object in the collection of the passed object
+        furthest_object_location = get_furthest_object_in_collection(collection, object_location, by_vertex)
+        direction = furthest_object_location - object_location
 
     direction.z = 0.0
     direction.normalize()
