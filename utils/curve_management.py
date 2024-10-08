@@ -23,7 +23,7 @@ def get_closest_point(points: list, reference_point: Vector):
     closest_point = points[0]
 
     for i in range(len(points) - 1):
-        point = points[i+1]
+        point = points[i + 1]
         vector_1 = closest_point - reference_point
         vector_2 = point - reference_point
 
@@ -33,16 +33,33 @@ def get_closest_point(points: list, reference_point: Vector):
     return closest_point
 
 
+def get_total_curve_length(curve: bpy.types.Object = None, bezier_points: list = None):
+    total_length = 0
+
+    if curve:
+        bezier_points = curve.data.splines[0].bezier_points
+
+    for i in range(len(bezier_points) - 1):
+        total_length += (bezier_points[i].co - bezier_points[i + 1].co).length
+
+    return total_length
+
+
 def get_visible_curves():
     # Get all visible (not hidden) curves
     objects = bpy.context.scene.objects
     return [obj for obj in objects if obj.type == "CURVE" and obj.visible_get()]
 
 
-def sort_curves(curves: list, reference_point: Vector):
+def sort_curves(curve_names: list, reference_point: Vector):
     direction_vectors = []
     # Calculate for each curve a direction vector from curve to reference point
-    for curve in curves:
+    for curve_name in curve_names:
+        curve = bpy.data.objects.get(curve_name)
+
+        if not curve:
+            return []
+
         curve_point_co = get_closest_curve_point(curve, reference_point, True)
         direction_vector = curve_point_co - reference_point
 

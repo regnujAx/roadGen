@@ -73,6 +73,7 @@ def visualize_crossing_points(graph):
 def visualize_curves(graph):
     undirected_edges = [*graph.edges].copy()
     curves = {}
+
     try:
         curves_collection = bpy.data.collections["Curves"]
         bpy.ops.object.select_all(action='DESELECT')
@@ -86,27 +87,20 @@ def visualize_curves(graph):
         bpy.context.scene.collection.children.link(curves_collection)
 
     index = 0
-    minimum_crossroad_size = 12.0
 
     for node in graph.nodes:
         for edge in node.edges:
             if edge in undirected_edges:
+                crossroad_size = 16.0
+
                 undirected_edges.remove(edge)
 
                 edge_points = edge.connection
                 edge_points_copy = edge_points.copy()
 
-                curve = bpy.data.curves.new("Curve", 'CURVE')
-                curve.splines.new('BEZIER')
-                curve_spline = curve.splines.active
-
                 first_point = edge_points[0].to_3d()
                 last_point = edge_points[-1].to_3d()
                 vec = last_point - first_point
-
-                # Increase the size of the crossroad if it is a major road
-                if edge.major:
-                    crossroad_size = minimum_crossroad_size + 5.0
 
                 # Skip edges that are too small
                 if vec.length < crossroad_size * 2:
@@ -160,24 +154,36 @@ def visualize_curves(graph):
                     if (last_point - first_point).length < crossroad_size:
                         continue
 
-                curve_spline.bezier_points.add(len(edge_points_copy) - 1)
-                obj = bpy.data.objects.new(f"Curve_{str(index).zfill(3)}", curve)
-                index += 1
-                curves_collection.objects.link(obj)
+                curve_name = "Curve_" + str(index).zfill(3)
 
-                for i in range(len(edge_points_copy)):
-                    curve_spline.bezier_points[i].co = edge_points_copy[i].to_3d()
-                    curve_spline.bezier_points[i].handle_right_type = 'VECTOR'
-                    curve_spline.bezier_points[i].handle_left_type = 'VECTOR'
-
-                set_origin(obj)
-
-                curves[edge] = obj
+                obj = visualize_one_curve(edge_points_copy, curves_collection, curve_name)
+                curves[edge] = obj.name
 
                 if edge.major:
                     obj["Major"] = True
+
+                index += 1
 
             curve = curves.get(edge)
 
             if curve:
                 node.curves.append(curve)
+
+
+def visualize_one_curve(points, curves_collection, curve_name):
+    curve = bpy.data.curves.new("Curve", 'CURVE')
+    curve.splines.new('BEZIER')
+    curve_spline = curve.splines.active
+    curve_spline.bezier_points.add(len(points) - 1)
+
+    obj = bpy.data.objects.new(curve_name, curve)
+    curves_collection.objects.link(obj)
+
+    for i in range(len(points)):
+        curve_spline.bezier_points[i].co = points[i].to_3d()
+        curve_spline.bezier_points[i].handle_right_type = 'VECTOR'
+        curve_spline.bezier_points[i].handle_left_type = 'VECTOR'
+
+    set_origin(obj)
+
+    return obj

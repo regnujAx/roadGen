@@ -4,9 +4,9 @@ from mathutils import Vector
 
 from roadGen.generators.geometry_generator import RG_GeometryGenerator
 from roadGen.road import RG_Road
-from roadGen.utils.curve_management import get_closest_curve_point
-from roadGen.utils.mesh_management import apply_transform, create_mesh_from_vertices, curve_to_mesh
+from roadGen.utils.curve_management import get_closest_curve_point, get_total_curve_length
 from roadGen.utils.collection_management import get_crossing_curves, get_crossing_points, link_to_collection
+from roadGen.utils.mesh_management import apply_transform, create_mesh_from_vertices, curve_to_mesh
 
 
 class RG_RoadGenerator(RG_GeometryGenerator):
@@ -49,21 +49,17 @@ def add_road_lanes(road: RG_Road):
         if side == "Right":
             reverse = True
 
+        turning_lane_distance = 0.0
         turning_lane_is_required = is_turning_lane_required(road, side)
 
-        # If there is a turning lane distance and a turning lane is required, the index of the bezier point is calculated
-        # that represent the start for the tuning lane
         if side == "Left" and road.left_turning_lane_distance and turning_lane_is_required:
-            turning_lane_start_index = calculate_turning_lane_start_index(bezier_points, road.left_turning_lane_distance, reverse)
             road.has_left_turning_lane = True
+            turning_lane_distance = road.left_turning_lane_distance
         elif side == "Right" and road.right_turning_lane_distance and turning_lane_is_required:
-            turning_lane_start_index = calculate_turning_lane_start_index(bezier_points, road.right_turning_lane_distance, reverse)
             road.has_right_turning_lane = True
-        else:
-            # Set the start index to -1 if there is no turning lane or not enough space for it, so that no extra lane is added
-            turning_lane_start_index = -1
+            turning_lane_distance = road.right_turning_lane_distance
 
-        crv = create_new_curve(bezier_points, road.lane_width, lane_number, turning_lane_start_index, reverse)
+        crv = create_new_curve(bezier_points, road.lane_width, lane_number, turning_lane_distance, reverse)
         new_curve = bpy.data.objects.new(f"{curve.name}_{side}", crv)
         new_curve.location = curve.location
         link_to_collection(new_curve, "Curves")
@@ -92,47 +88,16 @@ def add_road_lanes(road: RG_Road):
         curve_line_mesh = bpy.data.objects.get(f"Line_Mesh_{curve.name}")
         line_mesh_vertices = curve_line_mesh.data.vertices
 
-        # The right side was created backwards, so we can iterate forwards over the original curve mesh,
-        # only for the left side we have to iterate backwards (i.e. reverse the indices)
-        indices = range(len(line_mesh_vertices))
-
-        if not reverse:
-            indices = reversed(indices)
-
-        # Add all vertices of the line mesh of the original curve to the list of vertices
-        for i in indices:
+        # Add all vertices of the line mesh of the original curve reversed to the list of vertices
+        for i in reversed(range(len(line_mesh_vertices))):
             vertex = curve_line_mesh.matrix_world @ line_mesh_vertices[i].co
             vertex_vec = Vector((vertex.x, vertex.y, 0.0))
             vertices.append(vertex_vec)
 
-        create_mesh_from_vertices(vertices, "Road Lane", f"{side}_{curve.name}", 0.1)
+        create_mesh_from_vertices(vertices, "Road Lane", f"{curve.name}_{side}", 0.1)
 
 
-def calculate_turning_lane_start_index(points: list, distance: float, reverse: bool):
-    # Return 0 as start index if the road is too small so that the whole road get an extra lane
-    if (points[0].co - points[-1].co).length <= distance:
-        return len(points) - 1 if reverse else 0
-
-    length = 0
-    start_index = 0
-
-    indices = range(len(points))
-
-    if reverse:
-        indices = reversed(indices)
-
-    for i in indices:
-        index = i - 1 if reverse else i + 1
-        length += (points[index].co - points[i].co).length
-
-        if length >= distance:
-            start_index = index
-            break
-
-    return start_index
-
-
-def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, turning_lane_start_index: int, reverse: bool):
+def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, turning_lane_distance: float, reverse: bool):
     # Create a new curve and change its curve type to 3D and increase its resolution
     curve = bpy.data.curves.new("curve", 'CURVE')
     curve.dimensions = "3D"
@@ -154,28 +119,46 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
         indices = list(reversed(indices))
         last_index = 0
 
-    # "widening" means the part of the turning lane that is evenly widened until the turning lane is as wide as a driving lane
-    first_widening_index = turning_lane_start_index
-    last_widening_index = turning_lane_start_index + 1 if turning_lane_start_index == 0 else -1
-
+    # "widening" means the part of the turning lane that is evenly widened until the turning lane is as wide as a road lane
+    first_widening_index = None
+    last_widening_index = None
     widening_distance = 10
 
-    # Find the last index for the widening in order to know the indices
-    # between the first and the last index for optimal positioning to get an even curve
-    for i in indices:
-        is_part_of_turning_lane = (i <= first_widening_index) if reverse else (i >= first_widening_index)
-        last_index_condition = (i > last_index) if reverse else (i < last_index)
-
-        if is_part_of_turning_lane and last_index_condition and first_widening_index != -1 and widening_distance > 0:
-            next_index = i - 1 if reverse else i + 1
-            last_widening_index = next_index
-            widening_distance -= (bezier_points[i].co - bezier_points[next_index].co).length
-
-        if widening_distance <= 0:
-            break
+    length = 0
+    total_curve_length = get_total_curve_length(bezier_points=bezier_points)
 
     # Calculate for each index the new (shifted) coordinates for each bezier point of the new curve
     for i in indices:
+        if turning_lane_distance == 0.0:
+            # No turning lane
+            offset = lane_width * lane_number
+        elif total_curve_length < turning_lane_distance + widening_distance:
+            # Turning lane for the whole curve if the curve is smaller than a turning lane with widening
+            offset = lane_width * (lane_number + 1)
+        else:
+            # Calculate turning lane offset for each point
+            if i != last_index:
+                vector = (bezier_points[i - 1].co - bezier_points[i].co if reverse
+                          else bezier_points[i + 1].co - bezier_points[i].co)
+                length += vector.length
+
+                # Remember only the first indices of the widening
+                if length >= turning_lane_distance and not last_widening_index:
+                    last_widening_index = i
+                elif length >= turning_lane_distance + widening_distance and not first_widening_index:
+                    first_widening_index = i
+
+                if length < turning_lane_distance or length - vector.length < turning_lane_distance:
+                    offset = lane_width * (lane_number + 1)
+                elif length < turning_lane_distance + widening_distance and length >= turning_lane_distance:
+                    # Calculate the offset depending on the position in the widening if it is part of the widening
+                    interpolation_factor = (length - turning_lane_distance) / widening_distance
+                    offset = lane_width * (lane_number + 1) - (interpolation_factor * lane_width)
+                else:
+                    offset = lane_width * lane_number
+            else:
+                offset = lane_width * lane_number
+
         vec = (bezier_points[i].handle_left - bezier_points[i].co if reverse
                else bezier_points[i].handle_right - bezier_points[i].co)
         vec.normalize()
@@ -183,57 +166,59 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
         # Invert the orthogonal vector for the right side
         orthogonal_vector = Vector((vec.y, -vec.x, 0.0)) if reverse else Vector((-vec.y, vec.x, 0.0))
 
-        is_part_of_turning_lane = (i >= turning_lane_start_index) if reverse else (i <= turning_lane_start_index)
-        is_part_of_widening = ((i < first_widening_index and i > last_widening_index) if reverse
-                               else (i > first_widening_index and i < last_widening_index))
-
-        # Calculate the shift offset of the current bezier point depending on the passed start index
-        # or if it is part of the turning lane or of the widening
-        if turning_lane_start_index == -1:
-            offset = lane_width * lane_number
-        elif is_part_of_turning_lane or turning_lane_start_index == 0:
-            offset = lane_width * (lane_number + 1)
-        elif is_part_of_widening:
-            # The shift offset of the widening depends on the distance between the bezier points
-            # with the first and last widening indices
-            widening_vec = bezier_points[first_widening_index].co - bezier_points[last_widening_index].co
-            next_index = i - 1 if reverse else i + 1
-            next_vec = bezier_points[first_widening_index].co - bezier_points[i].co
-            offset = lane_width * (lane_number + 1) - (next_vec.length / widening_vec.length * lane_width)
-        else:
-            offset = lane_width * lane_number
-
         if reverse:
             offset *= -1
 
         shift = orthogonal_vector * offset
 
-        # Calculate the index for the current bezier point of the new curve
-        new_index = bezier_points_number - 1 - i if reverse else i
+        # Set the coordinate and the handles of the current bezier point
+        new_bezier_points[i].co = bezier_points[i].co + shift
+        new_bezier_points[i].handle_left_type = 'AUTO'
+        new_bezier_points[i].handle_right_type = 'AUTO'
 
-        # Set the coordinates of the current bezier point
-        new_bezier_points[new_index].co = bezier_points[i].co + shift
+    if first_widening_index and last_widening_index:
+        if abs(last_widening_index - first_widening_index) > 1:
+            # Delete the unnecessary points if there are points between the begin and end point of widening
+            new_coords = []
 
-        # Update the handles of the current bezier point
-        if i == first_widening_index:
-            correct_handle = bezier_points[i].handle_right if reverse else bezier_points[i].handle_left
-            new_bezier_points[new_index].handle_left = correct_handle + shift
-            new_bezier_points[new_index].handle_right_type = 'AUTO'
-        elif i == last_widening_index:
-            new_bezier_points[new_index].handle_left_type = 'AUTO'
-            correct_handle = bezier_points[i].handle_left if reverse else bezier_points[i].handle_right
-            new_bezier_points[new_index].handle_right = correct_handle + shift
-        elif is_part_of_widening:
-            new_bezier_points[new_index].handle_left_type = 'AUTO'
-            new_bezier_points[new_index].handle_right_type = 'AUTO'
+            # Iterate over all points, but keep only points that are not part of the widening
+            for i in range(bezier_points_number):
+                is_not_part_of_widening = ((i <= first_widening_index or i >= last_widening_index) if reverse
+                                           else (i >= first_widening_index or i <= last_widening_index))
+
+                if is_not_part_of_widening:
+                    new_coords.append(new_bezier_points[i].co.copy())
+
+            # Delete the existing spline and create a new one
+            curve.splines.clear()
+            spline = curve.splines.new(type='BEZIER')
+
+            bezier_points = spline.bezier_points
+
+            bezier_points.add(len(new_coords) - 1)
+
+            # Update the coordinates and handles of the new points
+            for i in range(len(new_coords)):
+                bezier_points[i].co = new_coords[i]
+
+                bezier_points[i].handle_left_type = 'AUTO'
+                bezier_points[i].handle_right_type = 'AUTO'
+
+                correct_index = first_widening_index if reverse else last_widening_index
+
+                # Change only the type of the correct handle
+                if i == correct_index:
+                    bezier_points[i].handle_left_type = 'VECTOR'
+                elif i == correct_index + 1:
+                    bezier_points[i].handle_right_type = 'VECTOR'
         else:
-            # Set the left handle of the current bezier point
-            correct_handle = bezier_points[i].handle_right if reverse else bezier_points[i].handle_left
-            new_bezier_points[new_index].handle_left = correct_handle + shift
+            # Update only the handles of the both points (begin and end of widening) if there are no points between them.
+            index_1 = last_widening_index if reverse else first_widening_index
+            index_2 = first_widening_index if reverse else last_widening_index
 
-            # Set the right handle of the current bezier point
-            correct_handle = bezier_points[i].handle_left if reverse else bezier_points[i].handle_right
-            new_bezier_points[new_index].handle_right = correct_handle + shift
+            # Changing the type of the correct handles is sufficient
+            new_bezier_points[index_1].handle_right_type = 'VECTOR'
+            new_bezier_points[index_2].handle_left_type = 'VECTOR'
 
     return curve
 

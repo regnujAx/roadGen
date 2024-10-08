@@ -51,7 +51,7 @@ def add_line_following_mesh(mesh_name: str):
 
     for i in range(len(bm.verts) - 1):
         # Add a new edge with the current vertex and the closest next vertex
-        bm.edges.new((bm.verts[i], bm.verts[i+1]))
+        bm.edges.new((bm.verts[i], bm.verts[i + 1]))
 
     # Fill line mesh's data with the BMesh
     bm.to_mesh(line_mesh.data)
@@ -161,21 +161,28 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
     mesh_eval_data = line_mesh.data
     bm_line = bmesh.new()
     bm_line.from_mesh(mesh_eval_data)
-    total_length = line_mesh_length(bm_line)
+    total_length = get_line_mesh_length(bm_line)
 
     counter = 0
     direction = None
     position = None
     reference_direction = None
+    turned = True
     use_reference_direction = False
 
     distance = calculate_optimal_distance(total_length, road.lamp_distance)
     sections = round(total_length / distance)
 
+    if side == "Right":
+        offset *= -1
+
     if "Traffic Sign" in object_name:
         traffic_sign_collection_names = get_subcollection_names_of_collection_by_name("Templates", "Traffic Sign")
 
         use_reference_direction = True
+
+        if side == "Left":
+            turned = False
 
         # Get a random number of traffic signs
         number = random.randint(0, int(total_length / distance))
@@ -204,13 +211,22 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         if lanes_number == 1:
             use_reference_direction = True
 
-        positions = [1.0]
+        if side == "Right":
+            positions = [total_length - 1]
+        else:
+            if lanes_number == 1:
+                turned = False
+            positions = [1.0]
 
         # Adjust the position offset for the traffic light
         offset /= 4
     elif "Street Name Sign" in object_name:
         if road.right_neighbour_of_left_curve and side == "Left":
             right_neighbour_name = road.right_neighbour_of_left_curve.name
+
+            # Adjust the position offset and the option for turning only for the left side
+            offset *= -1
+            turned = False
         elif road.right_neighbour_of_right_curve and side == "Right":
             right_neighbour_name = road.right_neighbour_of_right_curve.name
         else:
@@ -240,13 +256,10 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         mesh_eval_data = line_mesh.data
         bm_line = bmesh.new()
         bm_line.from_mesh(mesh_eval_data)
-        total_length = line_mesh_length(bm_line)
+        total_length = get_line_mesh_length(bm_line)
 
         # Set the mid of the line mesh as the position for the sign
         positions = [total_length / 2]
-
-        # Adjust the position offset for the street name sign
-        offset *= -1
     else:
         collection = bpy.data.collections.get(object_name)
 
@@ -312,7 +325,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
 
             # Add an object at the shifted position and rotate it
             object = add_object_at_position(collection, shifted_position)
-            rotate_object(object, collection, position, direction, reference_direction)
+            rotate_object(object, collection, position, turned, direction, reference_direction)
 
             # Set the height correctly
             if object.location.z == 0.0:
@@ -542,7 +555,7 @@ def get_intersecting_meshes(meshes: list):
     return intersecting_meshes
 
 
-def line_mesh_length(line_mesh: bmesh):
+def get_line_mesh_length(line_mesh: bmesh):
     total_length = 0
 
     for edge in line_mesh.edges:
@@ -554,7 +567,7 @@ def line_mesh_length(line_mesh: bmesh):
 
 def rotate_object(
         object: bpy.types.Object, collection: bpy.types.Collection, reference_point: Vector,
-        direction: Vector = None, reference_direction: Vector = None):
+        turned: bool, direction: Vector = None, reference_direction: Vector = None):
     furthest_object_location = None
     object_location = object.matrix_world.translation
     by_vertex = False if reference_direction else True
@@ -567,9 +580,12 @@ def rotate_object(
     direction.z = 0.0
     direction.normalize()
 
+    if turned:
+        direction *= -1
+
     if not reference_direction:
-        # If no reference direction is passed, get the reference vector between the object and the reference point
-        reference_direction = reference_point - object_location
+        # If no reference direction is passed, get the reference vector between the reference point and the object
+        reference_direction = object_location - reference_point
 
     reference_direction.normalize()
 

@@ -25,9 +25,9 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
             print("Check whether the object Sidewalk exists. It is missing.")
 
     def add_geometry(self, curve: bpy.types.Object = None, road: RG_Road = None, side: str = None):
-        if curve:
-            # The sidewalk has to be on the other side of a crossroad curve
-            index = -1
+        # The sidewalk has to be on the other side of a crossroad curve and the right side
+        index = -1
+
         if road:
             if not road.sidewalk_mesh_template:
                 road.sidewalk_mesh_template = self.mesh_template
@@ -36,10 +36,9 @@ class RG_SidewalkGenerator(RG_GeometryGenerator):
 
             if side == "Left" and road.left_curve:
                 curve = road.left_curve
+                index = 1
             elif side == "Right" and road.right_curve:
                 curve = road.right_curve
-
-            index = 1
 
         mesh = add_mesh_to_curve(self.mesh_template, curve, f"Sidewalk_{curve.name}", index, self.offset)
 
@@ -126,8 +125,8 @@ def drop_sidewalk(mesh: bpy.types.Object, kerb_mesh_name: str, drop_depth: float
     filtered_dropped_vertices = []
     for i in range(num - 2):
         vertex_1 = dropped_vertices[i]
-        vertex_2 = dropped_vertices[i+1]
-        vertex_3 = dropped_vertices[i+2]
+        vertex_2 = dropped_vertices[i + 1]
+        vertex_3 = dropped_vertices[i + 2]
 
         # Adjust the height to find better the upper vertices
         vertex_1.z = 0.25
