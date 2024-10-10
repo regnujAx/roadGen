@@ -113,11 +113,13 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
     new_bezier_points.add(bezier_points_number - 1)
 
     indices = range(bezier_points_number)
-    last_index = bezier_points_number - 1
+    first_index = bezier_points_number - 1
+    last_index = 0
 
     if reverse:
         indices = list(reversed(indices))
-        last_index = 0
+        first_index = 0
+        last_index = bezier_points_number - 1
 
     # "widening" means the part of the turning lane that is evenly widened until the turning lane is as wide as a road lane
     first_widening_index = None
@@ -137,7 +139,7 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
             offset = lane_width * (lane_number + 1)
         else:
             # Calculate turning lane offset for each point
-            if i != last_index:
+            if i != first_index:
                 vector = (bezier_points[i - 1].co - bezier_points[i].co if reverse
                           else bezier_points[i + 1].co - bezier_points[i].co)
                 length += vector.length
@@ -163,18 +165,54 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
                else bezier_points[i].handle_right - bezier_points[i].co)
         vec.normalize()
 
-        # Invert the orthogonal vector for the right side
-        orthogonal_vector = Vector((vec.y, -vec.x, 0.0)) if reverse else Vector((-vec.y, vec.x, 0.0))
-
-        if reverse:
-            offset *= -1
-
+        orthogonal_vector = Vector((-vec.y, vec.x, 0.0))
         shift = orthogonal_vector * offset
 
-        # Set the coordinate and the handles of the current bezier point
+        # Set the coordinate and the handles of the current bezier point (left and right sides have the same order as original)
         new_bezier_points[i].co = bezier_points[i].co + shift
         new_bezier_points[i].handle_left_type = 'AUTO'
         new_bezier_points[i].handle_right_type = 'AUTO'
+
+    correct_index = last_index if reverse else first_index
+
+    end = bezier_points[correct_index].co
+
+    last_vec = bezier_points[correct_index].handle_left - end if reverse else bezier_points[correct_index].handle_right - end
+    last_orthogonal_vector = Vector((-last_vec.y, last_vec.x, 0.0)) if reverse else Vector((last_vec.y, -last_vec.x, 0.0))
+
+    intersection = None
+    last_i = 0
+
+    for i in range(len(new_bezier_points) - 1):
+        p1 = new_bezier_points[i].co
+        p2 = new_bezier_points[i + 1].co
+
+        intersec = get_intersection(end, last_orthogonal_vector, p1, p2)
+
+        if intersec:
+            intersection = intersec
+            last_i = i
+
+    if intersection:
+        new_coords = []
+
+        for i in range(0, last_i + 1):
+            new_coords.append(new_bezier_points[i].co.copy())
+
+        new_coords.append(intersection)
+
+        new_coords_number = len(new_coords)
+
+        curve.splines.clear()
+        spline = curve.splines.new(type='BEZIER')
+
+        bezier_points = spline.bezier_points
+
+        bezier_points.add(new_coords_number - 1)
+        for i in range(new_coords_number):
+            bezier_points[i].co = new_coords[i]
+
+        new_bezier_points = bezier_points
 
     if first_widening_index and last_widening_index:
         if abs(last_widening_index - first_widening_index) > 1:
@@ -182,12 +220,14 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
             new_coords = []
 
             # Iterate over all points, but keep only points that are not part of the widening
-            for i in range(bezier_points_number):
+            for i in range(len(new_bezier_points)):
                 is_not_part_of_widening = ((i <= first_widening_index or i >= last_widening_index) if reverse
                                            else (i >= first_widening_index or i <= last_widening_index))
 
                 if is_not_part_of_widening:
                     new_coords.append(new_bezier_points[i].co.copy())
+
+            new_coords_number = len(new_coords)
 
             # Delete the existing spline and create a new one
             curve.splines.clear()
@@ -195,14 +235,23 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
 
             bezier_points = spline.bezier_points
 
-            bezier_points.add(len(new_coords) - 1)
+            bezier_points.add(new_coords_number - 1)
 
             # Update the coordinates and handles of the new points
-            for i in range(len(new_coords)):
+            for i in range(new_coords_number):
                 bezier_points[i].co = new_coords[i]
+                if i == new_coords_number - 1 and intersection:
+                    handle_co = bezier_points[i].co + last_vec
 
-                bezier_points[i].handle_left_type = 'AUTO'
-                bezier_points[i].handle_right_type = 'AUTO'
+                    if reverse:
+                        bezier_points[i].handle_left = handle_co
+                        bezier_points[i].handle_right_type = 'AUTO'
+                    else:
+                        bezier_points[i].handle_right = handle_co
+                        bezier_points[i].handle_left_type = 'AUTO'
+                else:
+                    bezier_points[i].handle_left_type = 'AUTO'
+                    bezier_points[i].handle_right_type = 'AUTO'
 
                 correct_index = first_widening_index if reverse else last_widening_index
 
@@ -221,6 +270,30 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
             new_bezier_points[index_2].handle_left_type = 'VECTOR'
 
     return curve
+
+
+def get_intersection(start_point: Vector, direction: Vector, first_point: Vector, second_point: Vector):
+    # Calculate the vector between the start points
+    vec = first_point - start_point
+
+    # Get the direction of the line, i.e. the two passed points
+    line_direction = second_point - first_point
+
+    cross_length = direction.cross(line_direction).length
+
+    threshold = 0.0001
+
+    if cross_length < threshold:
+        return None
+
+    # Calculate the interpolation factor
+    t = (vec.x * direction.y - vec.y * direction.x) / cross_length
+
+    if threshold <= t <= 1 - threshold:
+        # Calculate and return the intersection point on the line
+        return first_point + t * line_direction
+    else:
+        return None
 
 
 def is_turning_lane_required(road: RG_Road, side: str):
