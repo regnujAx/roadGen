@@ -145,7 +145,7 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
                 length += vector.length
 
                 # Remember only the first indices of the widening
-                if length >= turning_lane_distance and not last_widening_index:
+                if length >= turning_lane_distance and not last_widening_index and last_widening_index != 0:
                     last_widening_index = i
                 elif length >= turning_lane_distance + widening_distance and not first_widening_index:
                     first_widening_index = i
@@ -170,8 +170,8 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
 
         # Set the coordinate and the handles of the current bezier point (left and right sides have the same order as original)
         new_bezier_points[i].co = bezier_points[i].co + shift
-        new_bezier_points[i].handle_left_type = 'AUTO'
-        new_bezier_points[i].handle_right_type = 'AUTO'
+        new_bezier_points[i].handle_left = bezier_points[i].handle_left + shift
+        new_bezier_points[i].handle_right = bezier_points[i].handle_right + shift
 
     correct_index = last_index if reverse else first_index
 
@@ -214,7 +214,7 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
 
         new_bezier_points = bezier_points
 
-    if first_widening_index and last_widening_index:
+    if first_widening_index and (last_widening_index or last_widening_index == 0):
         if abs(last_widening_index - first_widening_index) > 1:
             # Delete the unnecessary points if there are points between the begin and end point of widening
             new_coords = []
@@ -240,6 +240,7 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
             # Update the coordinates and handles of the new points
             for i in range(new_coords_number):
                 bezier_points[i].co = new_coords[i]
+
                 if i == new_coords_number - 1 and intersection:
                     handle_co = bezier_points[i].co + last_vec
 
@@ -260,14 +261,6 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
                     bezier_points[i].handle_left_type = 'VECTOR'
                 elif i == correct_index + 1:
                     bezier_points[i].handle_right_type = 'VECTOR'
-        else:
-            # Update only the handles of the both points (begin and end of widening) if there are no points between them.
-            index_1 = last_widening_index if reverse else first_widening_index
-            index_2 = first_widening_index if reverse else last_widening_index
-
-            # Changing the type of the correct handles is sufficient
-            new_bezier_points[index_1].handle_right_type = 'VECTOR'
-            new_bezier_points[index_2].handle_left_type = 'VECTOR'
 
     return curve
 
