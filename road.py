@@ -18,8 +18,8 @@ class RG_Road:
         self.has_right_turning_lane = False
         self.kerb_mesh_template = None
         self.kerbs = []
-        self.right_neighbour_of_left_curve = None
-        self.right_neighbour_of_right_curve = None
+        self.right_neighbour_of_left_curve = ""
+        self.right_neighbour_of_right_curve = ""
         self.sidewalk_mesh_template = None
         self.sidewalks = {}
 
@@ -27,8 +27,9 @@ class RG_Road:
         return [int(x) for x in self.curve.get(f"{side} Dropped Kerbs").split(",")]
 
     def get_right_curve(self, side: str):
-        right_neighbour_location = (self.right_neighbour_of_left_curve.location if side == "Left"
-                                    else self.right_neighbour_of_right_curve.location)
+        right_neighbour = (bpy.data.objects.get(self.right_neighbour_of_left_curve) if side == "Left"
+                           else bpy.data.objects.get(self.right_neighbour_of_right_curve))
+        right_neighbour_location = right_neighbour.location
 
         # Get the closest point to the reference point of both side curves
         left_curve_point = get_closest_curve_point(self.left_curve, right_neighbour_location, True)

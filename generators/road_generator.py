@@ -131,7 +131,7 @@ def create_new_curve(bezier_points: list, lane_width: float, lane_number: int, t
 
     # Calculate for each index the new (shifted) coordinates for each bezier point of the new curve
     for i in indices:
-        if turning_lane_distance == 0.0:
+        if turning_lane_distance == 0:
             # No turning lane
             offset = lane_width * lane_number
         elif total_curve_length < turning_lane_distance + widening_distance:
@@ -303,7 +303,7 @@ def is_turning_lane_required(road: RG_Road, side: str):
 
             right_neighbour = get_right_neighbour_curve_of_curve(curve, crossroad_point, curves_number, side)
 
-            if right_neighbour and right_neighbour.name in curve_names:
+            if right_neighbour and right_neighbour.rpartition('_')[0] in curve_names:
                 if side == "Left" and not road.right_neighbour_of_left_curve:
                     road.right_neighbour_of_left_curve = right_neighbour
                 elif side == "Right" and not road.right_neighbour_of_right_curve:
@@ -362,4 +362,14 @@ def get_right_neighbour_curve_of_curve(
                     # Round the z-axis of the cross product to obtain also a not quite exact right-hand curve
                     # (or to avoid floating point issues)
                     if round(cross_prod.z, 1) < 0:
-                        return bpy.data.objects.get(right_neighbour_curve_name)
+                        right_neighbour_first_point = (right_neighbour_curve.matrix_world @
+                                                       right_neighbour_curve.data.splines[0].bezier_points[0].co)
+
+                        if right_neighbour_point == right_neighbour_first_point:
+                            right_neighbour_closest_side = "Right"
+                        else:
+                            right_neighbour_closest_side = "Left"
+
+                        return f"{right_neighbour_curve_name}_{right_neighbour_closest_side}"
+
+    return ""

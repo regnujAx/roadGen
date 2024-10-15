@@ -13,11 +13,11 @@ from roadGen.utils.mesh_management import (
 
 class RG_CrossroadGenerator(RG_GeometryGenerator):
     def __init__(self):
-        self.crossroads = []
+        self.crossroads = {}
 
     def add_geometry(self, curves: list, crossroad_point: bpy.types.Object):
-        crossroad = add_crossroad(curves, crossroad_point)
-        self.crossroads.append(crossroad)
+        crossroad_mesh, crossroad_curves = add_crossroad(curves, crossroad_point)
+        self.crossroads[crossroad_mesh.name] = crossroad_curves
 
 
 # ------------------------------------------------------------------------
@@ -33,23 +33,23 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
     reference_point = crossroad_point.location
 
     for curve in curves:
+        outer_vertices = []
         # Get the outer vertices of the side curves of a curve
-        curve_left = bpy.data.objects.get(f"{curve.name}_Left")
-        curve_right = bpy.data.objects.get(f"{curve.name}_Right")
-        point_left_co = get_closest_curve_point(curve_left, reference_point, True)
-        point_right_co = get_closest_curve_point(curve_right, reference_point, True)
-        outer_vertices = [point_left_co, point_right_co]
+        for side in ["Left", "Right"]:
+            side_curve = bpy.data.objects.get(f"{curve.name}_{side}")
+            point_co = get_closest_curve_point(side_curve, reference_point, True)
+            outer_vertices.append(point_co)
+
+            # Add the vertex and its curve to a dictionary
+            road_vertices[side_curve.name] = point_co
 
         # Sort the vertices (clockwise) with respect to the reference point
         vertex = get_closest_point([outer_vertices[0], outer_vertices[1]], reference_point)
         other_vertex = outer_vertices[0] if vertex == outer_vertices[1] else outer_vertices[1]
-        verts = [vertex, other_vertex]
-
-        # Add the ordered vertices and its curve to the dictionary
-        road_vertices[curve.name] = verts
+        outer_vertices = [vertex, other_vertex]
 
         # Add the ordered vertices to a list to work through them one after the other
-        vertices_to_remove.extend(verts)
+        vertices_to_remove.extend(outer_vertices)
 
         # Update the reference point
         reference_point = vertex
@@ -61,16 +61,15 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
         v = vertices_to_remove[1]
         vertices_to_remove[1] = vertices_to_remove[0]
         vertices_to_remove[0] = v
-        # Also update the dictionary
-        road_vertices[0] = [vertices_to_remove[0], vertices_to_remove[1]]
 
+    crossroad_curves = []
     vertices = []
     first_vertex = None
     number_of_vertices = len(vertices_to_remove)
 
     # Convert the dictionary keys and values into lists
     curves_list = list(road_vertices.keys())
-    vertices_list = [v for value in road_vertices.values() for v in value]
+    vertices_list = [value for value in road_vertices.values()]  # for v in value]
 
     # Iterate over all vertices and collect the vertices for the crossroad plane
     # Assumption: All vertices are in the correct order
@@ -87,14 +86,15 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
             vertex_1 = first_vertex
 
         # Get the correct curves depending on the current vertices
-        position_0 = int(vertices_list.index(vertex_0) / 2)
-        position_1 = int(vertices_list.index(vertex_1) / 2)
+        position_0 = vertices_list.index(vertex_0)
+        position_1 = vertices_list.index(vertex_1)
         curve_0 = curves_list[position_0]
         curve_1 = curves_list[position_1]
 
-        if curve_0 != curve_1:
+        if curve_0.rpartition('_')[0] != curve_1.rpartition('_')[0]:
             # Add a curve between two different curves
-            add_crossroad_curve([curve_0, curve_1], [vertex_0, vertex_1], crossroad_point.location)
+            crossroad_curve = add_crossroad_curve([curve_0, curve_1], [vertex_0, vertex_1], crossroad_point.location)
+            crossroad_curves.append(crossroad_curve)
 
             line_mesh = bpy.data.objects.get(f"Line_Mesh_Crossroad_Curve_{curve_0}_{curve_1}")
             m = line_mesh.matrix_world
@@ -111,7 +111,9 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
         vertex_to_remove = vertex_0
         vertices_to_remove.remove(vertex_to_remove)
 
-    return create_mesh_from_vertices(vertices, "Crossroad", f"{crossroad_point.name}", height)
+    crossroad_mesh = create_mesh_from_vertices(vertices, "Crossroad", f"{crossroad_point.name}", height)
+
+    return crossroad_mesh, crossroad_curves
 
 
 def add_crossroad_curve(curve_names: list, points: list, crossroad_point: Vector):
@@ -160,9 +162,11 @@ def add_crossroad_curve(curve_names: list, points: list, crossroad_point: Vector
         crv.splines[0].bezier_points[i].handle_right = new_co
 
     # Create a new object based on the curve and link it to its collection
-    curve = bpy.data.objects.new(f"Crossroad_Curve_{curve_names[0]}_{curve_names[1]}", crv)
-    link_to_collection(curve, "Crossroad Curves")
-    set_origin(curve)
+    crossroad_curve = bpy.data.objects.new(f"Crossroad_Curve_{curve_names[0]}_{curve_names[1]}", crv)
+    link_to_collection(crossroad_curve, "Crossroad Curves")
+    set_origin(crossroad_curve)
 
     # Create a line mesh from the curve (needed for crossroad plane) and link it to its collection
-    curve_to_mesh(curve)
+    curve_to_mesh(crossroad_curve)
+
+    return crossroad_curve

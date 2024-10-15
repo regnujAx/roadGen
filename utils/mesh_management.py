@@ -89,7 +89,7 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
     # (add a threshold to also take the last part into account)
     curve_length = curve.data.splines[0].calc_length()
     minimum_width = 2.0
-    threshold = 0.001
+    threshold = 0.00001
     mesh.dimensions[0] = calculate_optimal_distance(curve_length, minimum_width) + threshold
 
     # Apply the correct curve for the mesh modifiers
@@ -222,13 +222,13 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
         offset /= 4
     elif "Street Name Sign" in object_name:
         if road.right_neighbour_of_left_curve and side == "Left":
-            right_neighbour_name = road.right_neighbour_of_left_curve.name
+            right_neighbour_name = road.right_neighbour_of_left_curve
 
             # Adjust the position offset and the option for turning only for the left side
             offset *= -1
             turned = False
         elif road.right_neighbour_of_right_curve and side == "Right":
-            right_neighbour_name = road.right_neighbour_of_right_curve.name
+            right_neighbour_name = road.right_neighbour_of_right_curve
         else:
             return
 
@@ -245,7 +245,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
 
         # Calculate the reference direction (the direction in which the sign should be rotated)
         m = curve.matrix_world
-        crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_name}_{right_neighbour_name}")
+        crossroad_curve = bpy.data.objects.get(f"Crossroad_Curve_{curve_name}_{side}_{right_neighbour_name}")
         curve_point = get_closest_curve_point(curve, crossroad_curve.matrix_world.translation)
         reference_direction = m @ curve_point.co - m @ curve_point.handle_left
 
@@ -328,7 +328,7 @@ def add_objects_to_road(object_name: str, road: RG_Road, side: str, offset: floa
             rotate_object(object, collection, position, turned, direction, reference_direction)
 
             # Set the height correctly
-            if object.location.z == 0.0:
+            if object.location.z == 0:
                 object.location.z = height
 
             counter += 1

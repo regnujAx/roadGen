@@ -4,6 +4,7 @@ from roadGen.generators.crossroad_generator import RG_CrossroadGenerator
 from roadGen.generators.data_generator import RG_DataGenerator
 from roadGen.generators.graph_to_net_generator import RG_GraphToNetGenerator
 from roadGen.generators.kerb_generator import RG_KerbGenerator
+from roadGen.generators.lot_generator import RG_LotGenerator
 from roadGen.generators.object_generator import RG_ObjectGenerator
 from roadGen.generators.road_generator import RG_RoadGenerator
 from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
@@ -76,9 +77,9 @@ class RG_RoadNetGenerator:
                 crossroad_generator.add_geometry(curves, crossroad_point)
 
                 # Get the curves of the crossroad to generate kerbs and sidewalks
-                curves = get_crossing_curves(crossroad_point, True)
+                crossroad_curves = crossroad_generator.crossroads[f"Crossroad_{crossroad_point.name}"]
 
-                for curve in curves:
+                for curve in crossroad_curves:
                     kerb_generator.add_geometry(curve=curve)
                     sidewalk_generator.add_geometry(curve=curve)
 
@@ -87,11 +88,21 @@ class RG_RoadNetGenerator:
             if counter % 10 == 0:
                 print(f"\t{counter} crossroads added")
 
-        print(f"Crossroad generation ({len(crossroad_points)} in total) completed in {time() - t:.2f}s")
+        print(f"Crossroad generation ({counter} in total) completed in {time() - t:.2f}s")
 
         # Visualize objects in Blender
         object_generator = RG_ObjectGenerator(["Street Lamp", "Street Name Sign", "Traffic Light", "Traffic Sign"])
         add_geometry_and_measure_time(object_generator, roads, "object")
+
+        # Visualize lots (areas between the roads) in Blender
+        print("\n- Starting generation of lots -")
+
+        t = time()
+
+        lot_generator = RG_LotGenerator(roads)
+        lot_generator.add_geometry()
+
+        print(f"Lot generation ({len(lot_generator.lots)} in total) completed in {time() - t:.2f}s")
 
         print(f"\n--- Overall road net generation time: {time() - start:.2f}s ---")
 
