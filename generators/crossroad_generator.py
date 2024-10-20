@@ -34,6 +34,7 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
 
     for curve in curves:
         outer_vertices = []
+
         # Get the outer vertices of the side curves of a curve
         for side in ["Left", "Right"]:
             side_curve = bpy.data.objects.get(f"{curve.name}_{side}")
@@ -52,7 +53,7 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
         vertices_to_remove.extend(outer_vertices)
 
         # Update the reference point
-        reference_point = vertex
+        reference_point = other_vertex
 
     # Check whether the first two vertices are in the correct order; if not, swap them
     vertex = get_closest_point([vertices_to_remove[0], vertices_to_remove[1]], vertices_to_remove[2])
@@ -69,7 +70,7 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
 
     # Convert the dictionary keys and values into lists
     curves_list = list(road_vertices.keys())
-    vertices_list = [value for value in road_vertices.values()]  # for v in value]
+    vertices_list = [value for value in road_vertices.values()]
 
     # Iterate over all vertices and collect the vertices for the crossroad plane
     # Assumption: All vertices are in the correct order

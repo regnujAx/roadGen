@@ -578,7 +578,6 @@ def rotate_object(
         direction = furthest_object_location - object_location
 
     direction.z = 0.0
-    direction.normalize()
 
     if turned:
         direction *= -1
@@ -587,13 +586,8 @@ def rotate_object(
         # If no reference direction is passed, get the reference vector between the reference point and the object
         reference_direction = object_location - reference_point
 
-    reference_direction.normalize()
-
-    # Calculate the dot product of the two vectors and their lengths
-    dot_product = direction.dot(reference_direction)
-
     # Calculate the angle between the two vectors
-    angle_radian = math.acos(dot_product)
+    angle_radian = direction.angle(reference_direction)
 
     # Calculate the cross product of the two vectors to check whether the angle between them (in radians)
     # is positive (counter-clockwise) or negative (clockwise)
