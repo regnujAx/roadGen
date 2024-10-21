@@ -44,6 +44,14 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
             # Add the vertex and its curve to a dictionary
             road_vertices[side_curve.name] = point_co
 
+            # Update the reference point to the correct side curve point (the "right" one) for the first curve
+            if reference_point == crossroad_point.location:
+                left_first_point = side_curve.matrix_world @ side_curve.data.splines[0].bezier_points[0].co
+                right_first_point = side_curve.matrix_world @ side_curve.data.splines[0].bezier_points[-1].co
+
+                if side == "Left" and point_co == left_first_point or side == "Right" and point_co == right_first_point:
+                    reference_point = point_co
+
         # Sort the vertices (clockwise) with respect to the reference point
         vertex = get_closest_point([outer_vertices[0], outer_vertices[1]], reference_point)
         other_vertex = outer_vertices[0] if vertex == outer_vertices[1] else outer_vertices[1]
@@ -52,8 +60,9 @@ def add_crossroad(curves: list, crossroad_point: bpy.types.Object, height: float
         # Add the ordered vertices to a list to work through them one after the other
         vertices_to_remove.extend(outer_vertices)
 
-        # Update the reference point
-        reference_point = other_vertex
+        # Update the reference point for the other curves
+        if reference_point != crossroad_point.location and reference_point not in outer_vertices:
+            reference_point = other_vertex
 
     # Check whether the first two vertices are in the correct order; if not, swap them
     vertex = get_closest_point([vertices_to_remove[0], vertices_to_remove[1]], vertices_to_remove[2])
