@@ -87,7 +87,7 @@ def get_crossing_curves(crossroad_point: bpy.types.Object, with_crossroad_curves
 
 def get_crossing_points():
     markers = get_objects_from_collection("Crossing Points")
-    return [marker for marker in markers if marker.visible_get()]
+    return [marker for marker in markers if marker.visible_get() and int(marker["Number of Curves"]) > 1]
 
 
 def get_first_and_last_objects_from_collections(collection_names: list, number_of_objects: int):

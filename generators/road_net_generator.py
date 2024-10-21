@@ -5,7 +5,7 @@ from roadGen.generators.data_generator import RG_DataGenerator
 from roadGen.generators.graph_to_net_generator import RG_GraphToNetGenerator
 from roadGen.generators.kerb_generator import RG_KerbGenerator
 from roadGen.generators.lot_generator import RG_LotGenerator
-from roadGen.generators.object_generator import RG_ObjectGenerator
+from roadGen.generators.road_furniture_generator import RG_RoadFurnitureGenerator
 from roadGen.generators.road_generator import RG_RoadGenerator
 from roadGen.generators.sidewalk_generator import RG_SidewalkGenerator
 from roadGen.utils.collection_management import count_objects_in_collections, get_crossing_curves, get_crossing_points
@@ -61,52 +61,55 @@ class RG_RoadNetGenerator:
         add_geometry_and_measure_time(sidewalk_generator, roads, "sidewalk")
 
         # Visualize crossroads in Blender
-        print("\n- Starting generation of crossroads -")
-
-        counter = 0
-        t = time()
-
         crossroad_points = get_crossing_points()
-        crossroad_generator = RG_CrossroadGenerator()
 
-        for crossroad_point in crossroad_points:
-            # Get the original curves to generate the crossroad as such to check if there are more than one
-            curves = get_crossing_curves(crossroad_point)
+        if crossroad_points:
+            print("\n- Starting generation of crossroads -")
 
-            if len(curves) > 1:
-                crossroad_generator.add_geometry(curves, crossroad_point)
+            counter = 0
+            t = time()
 
-                # Get the curves of the crossroad to generate kerbs and sidewalks
-                crossroad_curves = crossroad_generator.crossroads[f"Crossroad_{crossroad_point.name}"]
+            crossroad_generator = RG_CrossroadGenerator()
 
-                for curve in crossroad_curves:
-                    kerb_generator.add_geometry(curve=curve)
-                    sidewalk_generator.add_geometry(curve=curve)
+            for crossroad_point in crossroad_points:
+                # Get the original curves to generate the crossroad as such to check if there are more than one
+                curves = get_crossing_curves(crossroad_point)
 
-                counter += 1
+                if len(curves) > 1:
+                    crossroad_generator.add_geometry(curves, crossroad_point)
 
-            if counter % 10 == 0:
-                print(f"\t{counter} crossroads added")
+                    # Get the curves of the crossroad to generate kerbs and sidewalks
+                    crossroad_curves = crossroad_generator.crossroads[f"Crossroad_{crossroad_point.name}"]
 
-        print(f"Crossroad generation ({counter} in total) completed in {time() - t:.2f}s")
+                    for curve in crossroad_curves:
+                        kerb_generator.add_geometry(curve=curve)
+                        sidewalk_generator.add_geometry(curve=curve)
 
-        # Visualize objects in Blender
-        object_generator = RG_ObjectGenerator(["Street Lamp", "Street Name Sign", "Traffic Light", "Traffic Sign"])
-        add_geometry_and_measure_time(object_generator, roads, "object")
+                    counter += 1
+
+                if counter % 10 == 0:
+                    print(f"\t{counter} crossroads added")
+
+            print(f"Crossroad generation ({counter} in total) completed in {time() - t:.2f}s")
+
+        # sidewalk_generator.correct_sidewalks()
+
+        # Visualize road furniture in Blender
+        road_furniture_generator = RG_RoadFurnitureGenerator(["Street Lamp", "Street Name Sign", "Traffic Light", "Traffic Sign"])
+        add_geometry_and_measure_time(road_furniture_generator, roads, "road furniture object")
 
         # Visualize lots (areas between the roads) in Blender
-        print("\n- Starting generation of lots -")
-
         t = time()
 
         lot_generator = RG_LotGenerator(roads)
         lot_generator.add_geometry()
 
-        print(f"Lot generation ({len(lot_generator.lots)} in total) completed in {time() - t:.2f}s")
+        if lot_generator.lots:
+            print("\n- Starting generation of lots -")
+
+            print(f"Lot generation ({len(lot_generator.lots)} in total) completed in {time() - t:.2f}s")
 
         print(f"\n--- Overall road net generation time: {time() - start:.2f}s ---")
-
-        # sidewalk_generator.correct_sidewalks()
 
 
 # ------------------------------------------------------------------------
@@ -125,13 +128,13 @@ def add_geometry_and_measure_time(generator, roads: list, geometry_type: str):
             generator.add_geometry(road=road, side=side)
             counter += 1
 
-        if counter % 10 == 0 and geometry_type != "object":
+        if counter % 10 == 0 and geometry_type != "road furniture object":
             print(f"\t{counter} {geometry_type}s added")
 
     with_subcollections = False if geometry_type == "sidewalk" else True
 
-    if geometry_type == "object":
-        collection_names = [object_name + "s" for object_name in generator.object_names]
+    if geometry_type == "road furniture object":
+        collection_names = [object_name + "s" for object_name in generator.road_furniture_object_names]
         emptys = True
     else:
         collection_names = [f"{generator.mesh_template.name}s"]
@@ -139,4 +142,4 @@ def add_geometry_and_measure_time(generator, roads: list, geometry_type: str):
 
     generated_objects_number = count_objects_in_collections(collection_names, with_subcollections, emptys)
 
-    print(f"{geometry_type.title()} generation ({generated_objects_number} in total) completed in {time() - t:.2f}s")
+    print(f"{geometry_type.capitalize()} generation ({generated_objects_number} in total) completed in {time() - t:.2f}s")
