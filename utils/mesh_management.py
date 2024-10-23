@@ -98,7 +98,7 @@ def add_mesh_to_curve(mesh_template: bpy.types.Object, curve: bpy.types.Object, 
 
     # Add the created mesh to the correct collection and apply its rotation and scale
     link_to_collection(mesh, collection_name, child_collection_name)
-    apply_transform(mesh, location=False, properties=False)
+    apply_transform(mesh, rotation=True, scale=True)
 
     # Set the mesh as active object and apply its modifiers
     apply_modifiers(mesh)
@@ -350,7 +350,7 @@ def apply_modifiers(mesh: bpy.types.Object):
 
 
 def apply_transform(
-        object: bpy.types.Object, location: bool = True, rotation: bool = True, scale: bool = True, properties: bool = True):
+        object: bpy.types.Object, location: bool = False, rotation: bool = False, scale: bool = False, properties: bool = False):
     object.select_set(True)
     bpy.ops.object.transform_apply(location=location, rotation=rotation, scale=scale, properties=properties)
     object.select_set(False)
@@ -374,11 +374,18 @@ def create_kdtree(vertices: list, size: int):
     return kd
 
 
-def create_mesh_from_vertices(vertices: list, category_name: str, suffix: str, height: float):
+def create_mesh_from_vertices(vertices: list, category_name: str, suffix: str, height: float = 0.0, reverse: bool = False):
     # Create the face (only one) based on the vertices for the mesh
     face = []
     faces = []
-    for index in range(len(vertices)):
+
+    indices = range(len(vertices))
+
+    # The order of the vertices for the face has to be reversed for some meshes so that the normals are calculated correct
+    if reverse:
+        indices = reversed(indices)
+
+    for index in indices:
         face.append(index)
     faces.append(face)
 
@@ -389,8 +396,9 @@ def create_mesh_from_vertices(vertices: list, category_name: str, suffix: str, h
     obj = bpy.data.objects.new(f"{new_category_name}_{suffix}", mesh)
     link_to_collection(obj, f"{category_name}s")
 
-    # Extrude the 2D mesh so it is a 3D mesh
-    extrude_mesh(obj, height)
+    if height != 0.0:
+        # Extrude the 2D mesh so it is a 3D mesh
+        extrude_mesh(obj, height)
 
     # Set the origin to the center of the mesh (Hint: This overwrites the location.)
     set_origin(obj, 'BOUNDS')

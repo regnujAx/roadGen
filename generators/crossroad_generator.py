@@ -4,11 +4,8 @@ from mathutils import Vector
 
 from roadGen.generators.geometry_generator import RG_GeometryGenerator
 from roadGen.utils.curve_management import get_closest_curve_point, get_closest_point
-from roadGen.utils.mesh_management import (
-    create_mesh_from_vertices,
-    curve_to_mesh,
-    link_to_collection,
-    set_origin)
+from roadGen.utils.collection_management import link_to_collection
+from roadGen.utils.mesh_management import create_mesh_from_vertices, curve_to_mesh, set_origin
 
 
 class RG_CrossroadGenerator(RG_GeometryGenerator):

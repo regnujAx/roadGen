@@ -1,5 +1,6 @@
 from time import time
 
+from roadGen.generators.building_generator import RG_BuildingGenerator
 from roadGen.generators.crossroad_generator import RG_CrossroadGenerator
 from roadGen.generators.data_generator import RG_DataGenerator
 from roadGen.generators.graph_to_net_generator import RG_GraphToNetGenerator
@@ -53,12 +54,12 @@ class RG_RoadNetGenerator:
 
         # Visualize kerbs in Blender
         kerb_generator = RG_KerbGenerator()
-        add_geometry_and_measure_time(kerb_generator, roads, "kerb")
+        add_geometry_with_roads_and_measure_time(kerb_generator, roads, "kerb")
 
         # Visualize sidewalks in Blender
         offset = kerb_generator.mesh_template.dimensions[1]
         sidewalk_generator = RG_SidewalkGenerator(offset=offset)
-        add_geometry_and_measure_time(sidewalk_generator, roads, "sidewalk")
+        add_geometry_with_roads_and_measure_time(sidewalk_generator, roads, "sidewalk")
 
         # Visualize crossroads in Blender
         crossroad_points = get_crossing_points()
@@ -96,18 +97,15 @@ class RG_RoadNetGenerator:
 
         # Visualize road furniture in Blender
         road_furniture_generator = RG_RoadFurnitureGenerator(["Street Lamp", "Street Name Sign", "Traffic Light", "Traffic Sign"])
-        add_geometry_and_measure_time(road_furniture_generator, roads, "road furniture object")
+        add_geometry_with_roads_and_measure_time(road_furniture_generator, roads, "road furniture object")
 
         # Visualize lots (areas between the roads) in Blender
-        t = time()
-
         lot_generator = RG_LotGenerator(roads)
-        lot_generator.add_geometry()
+        add_geometry_and_measure_time(lot_generator, "lot")
 
-        if lot_generator.lots:
-            print("\n- Starting generation of lots -")
-
-            print(f"Lot generation ({len(lot_generator.lots)} in total) completed in {time() - t:.2f}s")
+        # Visualize buildings in Blender
+        building_generator = RG_BuildingGenerator(lot_generator.lots)
+        add_geometry_and_measure_time(building_generator, "building")
 
         print(f"\n--- Overall road net generation time: {time() - start:.2f}s ---")
 
@@ -117,7 +115,20 @@ class RG_RoadNetGenerator:
 # ------------------------------------------------------------------------
 
 
-def add_geometry_and_measure_time(generator, roads: list, geometry_type: str):
+def add_geometry_and_measure_time(generator, geometry_type: str):
+    t = time()
+
+    generator.add_geometry()
+
+    plural_geometry_type = geometry_type + "s"
+    generated_meshes = getattr(generator, plural_geometry_type)
+
+    if generated_meshes:
+        print(f"\n- Starting generation of {geometry_type}s -")
+        print(f"{geometry_type.capitalize()} generation ({len(generated_meshes)} in total) completed in {time() - t:.2f}s")
+
+
+def add_geometry_with_roads_and_measure_time(generator, roads: list, geometry_type: str):
     print(f"\n- Starting generation of {geometry_type}s -")
 
     counter = 0

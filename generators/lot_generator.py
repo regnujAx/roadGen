@@ -24,9 +24,8 @@ class RG_LotGenerator(RG_GeometryGenerator):
 
                     if roads and lot_vertices:
                         unique_lot_vertices = remove_close_vertices(lot_vertices)
-                        height = road.sidewalk_mesh_template.dimensions[2]
 
-                        lot = create_mesh_from_vertices(unique_lot_vertices, "Lot", f"{lot_counter}", height)
+                        lot = create_mesh_from_vertices(unique_lot_vertices, "Lot", f"{lot_counter}", reverse=True)
 
                         if lot:
                             self.lots.append(lot)
@@ -52,15 +51,15 @@ def append_sidewalk_vertices_to_lot(sidewalk_meshes: list, lot_vertices: list, c
     direction_for_vertices_order = (curve.data.splines[0].bezier_points[0].handle_right -
                                     curve.data.splines[0].bezier_points[0].co)
 
+    # Find for each sidewalk mesh its outside top vertex indices and append their global coordinates to the passed list
     for i in indices:
         mesh = sidewalk_meshes[i]
 
         if i < 2 or i == len(sidewalk_meshes) - 1 and side == "Left":
-            outside_indices = get_outside_bottom_indices(mesh, side, direction_for_vertices_order)
+            outside_indices = get_outside_top_indices(mesh, side, direction_for_vertices_order)
 
         for index in outside_indices:
             global_vertex_co = mesh.matrix_world @ mesh.data.vertices[index].co
-            global_vertex_co.z = 0.0
             lot_vertices.append(global_vertex_co)
 
 
@@ -69,9 +68,11 @@ def get_lot_roads_and_vertices(roads: list, start_road: RG_Road, side: str):
     lot_vertices = []
     road = start_road
 
+    # Find the roads that belong to a lot (a closed area between roads), beginning at the passed start road
     while True:
         right_neighbour = None
 
+        # Get the correct curve and right neighbour of the current road
         if side == "Left" and road.left_curve:
             curve = road.left_curve
 
@@ -83,8 +84,10 @@ def get_lot_roads_and_vertices(roads: list, start_road: RG_Road, side: str):
             if road.right_neighbour_of_right_curve:
                 right_neighbour = bpy.data.objects.get(road.right_neighbour_of_right_curve)
 
+        # Get the sidewalks of the road
         sidewalk_meshes = road.sidewalks[side]
 
+        # Append the outside vertices of the sidewalk meshes to a list
         append_sidewalk_vertices_to_lot(sidewalk_meshes, lot_vertices, curve, side)
 
         if right_neighbour and road not in lot_roads[side]:
@@ -92,7 +95,7 @@ def get_lot_roads_and_vertices(roads: list, start_road: RG_Road, side: str):
             road_of_right_neighbour = get_road_by_curve(roads, right_neighbour)
 
             if road_of_right_neighbour:
-
+                # Continue for the crossroad if there is a next right neighbour
                 crossroad_curve_name = "Crossroad_Curve_" + curve.name + "_" + right_neighbour.name
                 crossroad_curve = bpy.data.objects.get(crossroad_curve_name)
                 sidewalk_meshes = get_objects_from_collection(f"Sidewalk_{crossroad_curve_name}")
@@ -102,10 +105,12 @@ def get_lot_roads_and_vertices(roads: list, start_road: RG_Road, side: str):
                 road = road_of_right_neighbour
 
                 if road == start_road:
+                    # Break if we reached the start road
                     break
 
                 side = "Left" if "Left" in right_neighbour.name else "Right"
         else:
+            # Break if there is no right neighbour or if we reached a already visited road
             break
 
     # Only return the found roads and vertices if the start road has been reached again
@@ -116,15 +121,15 @@ def get_lot_roads_and_vertices(roads: list, start_road: RG_Road, side: str):
     return None, None
 
 
-def get_outside_bottom_indices(mesh: bpy.types.Object, side: str, direction_for_vertices_order: Vector):
+def get_outside_top_indices(mesh: bpy.types.Object, side: str, direction_for_vertices_order: Vector):
     outside_indices = []
 
     vertex_group = mesh.vertex_groups.get(f"Outside_{side}")
 
     if vertex_group:
         for vertex in mesh.data.vertices:
-            # Check whether the vertex is part of the vertex group
             for group in vertex.groups:
+                # Check whether the vertex is part of the vertex group
                 if group.group == vertex_group.index:
                     outside_indices.append(vertex.index)
 
@@ -132,6 +137,7 @@ def get_outside_bottom_indices(mesh: bpy.types.Object, side: str, direction_for_
 
     outside_indices = sort_vertex_indices(outside_vertices, direction_for_vertices_order)
 
+    # Return the reversed order of indices for the left side
     return list(reversed(outside_indices)) if side == "Left" else outside_indices
 
 

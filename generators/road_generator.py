@@ -24,7 +24,7 @@ class RG_RoadGenerator(RG_GeometryGenerator):
 
         # Select the curve and apply its rotation and scale
         # but without its location and its properties such as radius
-        apply_transform(curve, location=False, properties=False)
+        apply_transform(curve, rotation=True, scale=True)
 
         # Create a line mesh copy of the curve
         curve_to_mesh(curve)
@@ -95,7 +95,8 @@ def add_road_lanes(road: RG_Road):
             vertex_vec = Vector((vertex.x, vertex.y, 0.0))
             vertices.append(vertex_vec)
 
-        create_mesh_from_vertices(vertices, "Road Lane", f"{curve.name}_{side}", 0.1)
+        # The vertices for the left side should be ordered reverse for mesh generation
+        create_mesh_from_vertices(vertices, "Road Lane", f"{curve.name}_{side}", 0.1, reverse=not reverse)
 
 
 def create_new_curve(
